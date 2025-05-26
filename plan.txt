@@ -1,0 +1,8 @@
+1. Key-Value store With raft
+    a. Create a key-value store which can be tested through terminal using rocksdb
+        1. Should support get,Update,delete.
+        2. Should use logging.
+        3. Should be persisted.
+    b. Create it as a gRPC server and test it using postman
+    d. write testing
+    c. integrate raft
