@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+service key_value_store_rpc{
+  rpc get_rpc(get_delete) returns (get_response);
+  rpc delete_rpc(get_delete) returns (put_delete_response);
+  rpc put_rpc(put) returns (put_delete_response);
+}
+message put_delete_response{
+  bool ok=1;
+  // string status_string=3;
+}
+message get_response{
+  string value=1;
+  bool ok=2;
+  // string status_string=3;
+}
+message get_delete{
+  string key=1;
+}
+message put{
+  string key=1;
+  string value=2;
+};

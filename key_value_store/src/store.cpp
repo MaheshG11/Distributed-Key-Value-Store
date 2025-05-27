@@ -7,16 +7,18 @@
 #include <iostream>
 Store::Store(std::string &path){
     options.create_if_missing = true;
+    std::cout<<"creating db ...\n";
     status = rocksdb::DB::Open(options, path, &db);
-    std::cout<<status.ToString()<<'\n';
-    std::cout<<"db created\n";
+    
 }
-rocksdb::Status Store::PUT(std::pair<std::string,std::string> &key_value){
-    return db->Put(this->write_options, key_value.first, key_value.second);
+bool Store::PUT(std::pair<std::string,std::string> &key_value){
+    return (db->Put(this->write_options, key_value.first, key_value.second)).ok();
 }
-rocksdb::Status Store::DELETE(std::string &key){
-    return db->Delete(this->write_options, key);
+bool Store::DELETE(std::string &key){
+    return (db->Delete(this->write_options, key)).ok();
 }
-rocksdb::Status Store::GET(std::string &key,std::string &value){
-    return db->Get(this->read_options, key, &value);
+std::pair<std::string,bool> Store::GET(std::string &key){
+    std::string value;
+    bool ok=(db->Get(this->read_options, key, &value)).ok();
+    return std::make_pair(value,ok);
 } 
