@@ -11,6 +11,9 @@ Store::Store(std::string &path){
     status = rocksdb::DB::Open(options, path, &db);
     
 }
+Store::~Store(){
+    delete db;
+}
 bool Store::PUT(std::pair<std::string,std::string> &key_value){
     return (db->Put(this->write_options, key_value.first, key_value.second)).ok();
 }

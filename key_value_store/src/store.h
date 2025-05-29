@@ -15,6 +15,7 @@ private:
 public:
     rocksdb::Status status;
     Store(std::string &path);
+    ~Store();
     bool PUT(std::pair<std::string,std::string> &key_value);
     bool DELETE(std::string &key);
     std::pair<std::string,bool> GET(std::string &key);

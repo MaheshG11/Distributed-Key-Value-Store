@@ -5,14 +5,12 @@
 #include <memory>
 using namespace std;
 
-void RunServer() {
-  std::string server_address("0.0.0.0:50051");
-  std::string path("/project/data");
+void RunServer(std::string server_address,std::string path ) {
   Api_impl service(path);
 
   grpc::ServerBuilder builder;
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(&service);project
+  builder.RegisterService(&service);
 
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
   std::cout << "Server listening on " << server_address << std::endl;
@@ -20,6 +18,6 @@ void RunServer() {
   server->Wait();
 }
 
-int main(){
-    RunServer();
+int main(int argc, char* argv[]){
+    RunServer(argv[1],argv[2]);
 }
