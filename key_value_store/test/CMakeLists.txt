@@ -7,13 +7,14 @@ target_link_libraries(start_test
         # Add the libraries which are being tested
         store
         API
+        CLIENT
         # Add the libraries on which the tests depends
         gtest 
         gtest_main 
         pthread
         gRPC_Communication_Lib 
         gRPC::grpc++
-        CLIENT
+        
 )
 
 target_include_directories(start_test 

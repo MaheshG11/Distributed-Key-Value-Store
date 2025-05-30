@@ -2,3 +2,4 @@ Double_Barrier_Synchronization.pdf
 *build*
 *.pb.*
 data/*
+*temp*
