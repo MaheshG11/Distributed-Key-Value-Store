@@ -7,7 +7,6 @@
 #include <utility>
 #include <string>
 
-
 class Client{
 private:
     std::unique_ptr<key_value_store_rpc::Stub> stub_;

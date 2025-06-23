@@ -60,6 +60,10 @@
         "__verbose_abort": "cpp",
         "filesystem": "cpp",
         "istream": "cpp",
-        "thread": "cpp"
+        "thread": "cpp",
+        "cassert": "cpp",
+        "mutex": "cpp",
+        "map": "cpp",
+        "charconv": "cpp"
     }
 }

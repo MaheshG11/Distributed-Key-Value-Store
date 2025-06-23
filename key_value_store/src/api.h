@@ -5,18 +5,19 @@
 #include "protofiles/gRPC_Communication.pb.h"
 #include "store.h"
 #include <string>
-
+#include <libnuraft/nuraft.hxx>
+#include "state_machine.h"
+#include "in_mem_state_manager.h"
 
 class CallDataBase {
     public:
         virtual void Proceed() = 0;
         virtual ~CallDataBase() = default;
 };
-
 class Api_impl {
 
 private:
-
+    
     class get_rpc_CallData:public CallDataBase{
     private:
         key_value_store_rpc::AsyncService* service_;
@@ -25,7 +26,9 @@ private:
         ::get_delete request_;
         ::get_response reply_;
         ::grpc::ServerAsyncResponseWriter<::get_response >responder_;
+        
         enum{CREATE,PROCESS,FINISH} status_;
+        
     public:
         void Proceed() override;
         
@@ -63,7 +66,7 @@ private:
     key_value_store_rpc::AsyncService service_;
 public:
     void Run();
-    Api_impl(std::string &server_address,std::string &path);
+    Api_impl(std::string &server_address,nuraft::ptr<nuraft::raft_server> &raft_instance_,Store* store_,nuraft::ptr<state_mgr> &smgr_);
     std::string server_address;
 
 };

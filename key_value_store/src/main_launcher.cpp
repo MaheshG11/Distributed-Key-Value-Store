@@ -1,34 +1,31 @@
-#include <iostream>
-#include "api_sync.h"
-#include <string>
-#include "utility"
-#include <memory>
-#include <grpcpp/grpcpp.h>
-#include "protofiles/gRPC_Communication.grpc.pb.h"
-#include "protofiles/gRPC_Communication.pb.h"
 #include <libnuraft/nuraft.hxx>
 #include "in_mem_log_store.h"
 #include "in_mem_state_manager.h"
 #include "state_machine.h"
+#include <string>
+#include "store.h"
+#include "api.h"
+#include "iostream"
+#include <chrono>
 #include "client.h"
+using namespace nuraft;
 
-using namespace std;
-
-void RunGrpcServer(string server_address,string path,nuraft::ptr<state_mgr> &smgr_,nuraft::ptr<nuraft::raft_server> &raft_instance_) {
-
-  Api_impl service(path,smgr_,raft_instance_);
-
-  grpc::ServerBuilder builder;
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(&service);
-
-  std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-  std::cout << "Server listening on " << server_address << std::endl;
-
-  server->Wait();
-}
-void RunRaftServer(){
-  bool async_snapshot=1;
+/*
+Arguments
+1.)async_snapshot : integer 0=false,other=true,
+2.) path
+3.) ip
+4.) port
+5.) srv_id
+6.) total replicas
+*/
+int main(int argc, char* argv[]) {
+    // bool async_snapshot=std::stoi(std::string(argv[1]));
+    // std::string ip(argv[3]);
+    // int port=std::stoi(std::string(argv[4]));
+    // int srv_id=std::stoi(std::string(argv[5])),n_replicas=std::stoi(std::string(argv[6]));
+    // std::string path(argv[2]),endpoint=ip+":"+std::to_string(port+srv_id);
+    bool async_snapshot=1;
     std::string ip("0.0.0.0");
     int port=std::stoi(std::string("7000"));
     int srv_id=std::stoi(std::string("1")),n_replicas=std::stoi(std::string("1"));
@@ -65,18 +62,21 @@ void RunRaftServer(){
         params
     );
     
-//     // // // Start the server listener
-//     // // launcher.run();
-//     // Need to wait for initialization.
-//     while (!raft_instance->is_initialized()) {
-//         std::this_thread::sleep_for( std::chrono::milliseconds(100) );
-//     }
-//     std::cout<<"server initialized"<<std::endl;
-//     endpoint=ip+":"+std::to_string(port+srv_id-1000);
-    // RunGrpcServer(endpoint,path,smgr,raft_instance);
-}
+    // // // Start the server listener
+    // // launcher.run();
+    // Need to wait for initialization.
+    while (!raft_instance->is_initialized()) {
+        std::this_thread::sleep_for( std::chrono::milliseconds(100) );
+    }
+    std::cout<<"server initialized"<<std::endl;
 
-int main(){
 
-RunRaftServer();
+    endpoint=ip+":"+std::to_string(port+srv_id-1000);
+    // Api_impl service(endpoint,raft_instance,store,smgr);
+//     service.Run();
+    // after this I will run server where the raft instance is used to append entries
+    // like raft_instance->append_entries(some_entry) or i will return directly if the request is get 
+    // keep running0
+    std::this_thread::sleep_for( std::chrono::milliseconds(10000) );
+    return 0;
 }
