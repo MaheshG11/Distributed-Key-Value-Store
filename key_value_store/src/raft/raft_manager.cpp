@@ -1,0 +1,326 @@
+#include "raft_manager.h"
+#include <thread>  
+
+STUB::STUB(std::string &ip_port){
+    s1=key_value_store_rpc::NewStub(grpc::CreateChannel(
+            ip_port, grpc::InsecureChannelCredentials()
+    ));
+    s2=raft::NewStub(grpc::CreateChannel(
+            ip_port, grpc::InsecureChannelCredentials()
+    ));
+}
+
+void raftManager::add_node_to_cluster(std::string &ip_port){
+    STUB s(ip_port);
+    mpp.insert(std::move (std::make_pair(ip_port,std::move(s))));
+
+}
+
+// bool raftManager::broadcast_log_entry(T &request);
+// The definition of this is in header file since it is a template
+
+
+bool raftManager::broadcast_commit(int64_t entry_id, bool commit){
+    ::commit_request request;
+    request.set_entry_id(entry_id);
+    request.set_commit(commit);
+    request.set_term(term_id);
+
+    grpc::ClientContext context;
+    std::vector<::commit_response> response(mpp.size());
+    std::vector<std::future<grpc::Status>> status;
+    int cnt=0,j=0;
+    for(auto &i : mpp){
+        try {
+            int32_t j_copy=j++;
+            status.push_back(std::async
+                (std::launch::async,
+                    [&,j_copy](){
+                        return retry(
+                            [&](grpc::ClientContext* ctx, const ::commit_request& req, ::commit_response* res) {
+                                return i.second.s2->commit_log_entry(ctx, req, res);
+                            },
+                            heartbeat_timeout,
+                            &context, request, &(response[j_copy])
+                        );
+                    }
+                )
+            );
+        } catch (const std::exception& e) {
+            continue;
+        }
+    }
+    for(int32_t i=0;i<j;i++){
+        try{
+            grpc::Status status_=status[i].get();
+            if(!status_.ok() || !response[i].success())
+            {
+                continue;
+            } 
+            cnt++;
+        } catch (const std::exception& e) {
+            continue;
+        }
+    }
+    if(cnt>(get_nodes_cnt()/2)) return true;
+    return false;    
+}
+
+bool raftManager::broadcast_member_update(bool to_drop,std::string& ip_port){
+    ::member_request request;
+    request.set_to_drop(to_drop);
+    request.set_ip_port(ip_port);
+
+    grpc::ClientContext context;
+    std::vector<::member_response> response(mpp.size());
+    std::vector<std::future<grpc::Status>> status;
+    int cnt=0,j=0;
+    for(auto &i : mpp){
+        try {
+            int32_t j_copy=j++;
+            status.push_back(std::async
+                (std::launch::async,
+                    [&,j_copy](){
+
+                        return retry(
+                            [&](grpc::ClientContext* ctx, const ::member_request& req, ::member_response* res) {
+                                return i.second.s2->update_cluster_member(ctx, req, res);
+                            },
+                            heartbeat_timeout,
+                            &context, request, &(response[j_copy])
+                        );
+                    }
+                )
+            );
+        } catch (const std::exception& e) {
+            continue;
+        }
+    }
+    for(int32_t i=0;i<j;i++){
+        try{
+            grpc::Status status_=status[i].get();
+            if(!status_.ok() || !response[i].success())
+            {
+                continue;
+            } 
+            cnt++;
+        } catch (const std::exception& e) {
+            continue;
+        }
+    }
+    if(cnt>(get_nodes_cnt()/2)) return true;
+    return false;    
+}
+
+void raftManager::start_heartbeat_sensing(){
+    
+    std::unique_lock<std::mutex> last_contact_lock(last_contact_mutex,std::defer_lock),
+                                    heartbeat_lock(heartbeat_mutex,std::defer_lock),
+                                    master_info_lock(master_info_mutex,std::defer_lock);
+    stop_heartbeat_sensing();
+    heartbeat_cv.wait(heartbeat_lock,[this](){
+        return is_running==false;
+    });
+    is_running = true;
+    run_heartbeat_sensing = true;
+    heartbeat_lock.unlock();
+    
+    
+    while(run_heartbeat_sensing){
+        wait_for(heartbeat_timeout);
+        if(get_state()==FOLLOWER){
+            ::heart_request request;
+            ::beats_response response;
+            grpc::ClientContext context;
+            request.set_term(term_id);
+            master_info_lock.lock();
+            grpc::Status status;
+            if(master_stub!=nullptr){
+                
+                status = retry(
+                            [&](grpc::ClientContext* ctx, const ::heart_request& req, ::beats_response* res) {
+                                return master_stub->heart_beat(ctx, req, res);
+                            },
+                            heartbeat_timeout,
+                            &context, request, &(response)
+                        );
+            }
+            master_info_lock.unlock();
+            if(status.ok()){
+                if(response.is_master())
+                {
+                    continue;
+                } else if(response.term()>term_id
+                    && response.master_ip_port() != "")
+                {
+                    update_master(response.master_ip_port(),response.term());
+                    continue;
+                }
+
+            }
+            last_contact_lock.lock();
+            auto diff=std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now()-last_contact
+            );
+            last_contact_lock.unlock();
+            if(diff<=heartbeat_timeout){
+                continue;
+            }
+        }
+        start_voting();
+    }
+    heartbeat_lock.lock();
+    is_running = false;
+    heartbeat_cv.notify_one();
+}
+
+void raftManager::start_voting(){
+    std::unique_lock<std::mutex> lock(last_voted_mutex);
+    auto diff=std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now()-last_voted
+    );
+    if(diff<=election_timeout)return;
+    std::string empty_string="";
+    change_state_to(CANDIDATE,empty_string,term_id);
+    ::vote_request request;
+    request.set_ip_port(this_ip_port);
+    request.set_term(term_id+1);
+    grpc::ClientContext context;
+    std::vector<::vote_response> response(mpp.size());
+    std::vector<std::future<grpc::Status>> status;
+    int cnt=0,j=0;
+    for(auto &i : mpp){
+        try {
+            int32_t j_copy=j++;
+            status.push_back(std::async
+                (std::launch::async,
+                    [&,j_copy](){
+                        return retry(
+                                [&](grpc::ClientContext* ctx, const ::vote_request& req, ::vote_response* res) {
+                                    return i.second.s2->vote_rpc(ctx, req, res);
+                                },
+                                election_timeout,
+                                &context, request, &(response[j_copy])
+                            );
+                    }
+                )
+            );
+        } catch (const std::exception& e) {
+            continue;
+        }
+    }
+    for(int32_t i=0;i<j;i++){
+        try{
+            grpc::Status status_=status[i].get();
+            if(!status_.ok())
+            {
+                continue;
+            }
+            if(response[i].vote()) cnt++;
+        } catch (const std::exception& e) {
+            continue;
+        }
+    }
+    if(cnt>(get_nodes_cnt()/2)) {
+        change_state_to(MASTER,this_ip_port,term_id+1);
+        broadcast_new_master();
+        stop_heartbeat_sensing();
+        grpc::ClientContext context;
+    }    
+}
+
+// assuming broadcast is guaranteed
+void raftManager::broadcast_new_master(){
+    ::master_change_request request;
+    request.set_ip_port(this_ip_port);
+    request.set_term(term_id);
+    ::master_change_response response;
+    grpc::ClientContext context;
+    std::vector<std::future<grpc::Status>> status;
+    int cnt=0;
+    for(auto &i : mpp){
+        try {
+            std::async(
+                std::launch::async,
+                [&](){
+                    return retry(
+                                [&](grpc::ClientContext* ctx, const ::master_change_request& req, ::master_change_response* res) {
+                                    return i.second.s2->new_master(ctx, req, res);
+                                },
+                                heartbeat_timeout,
+                                &context, request, &(response)
+                            );
+                }
+            );         
+        } catch (const std::exception& e) {
+            continue;
+        }
+    }
+}
+
+raftManager::raftManager(int32_t election_timeout_,
+                                    int32_t heartbeat_timeout_,
+                                    std::string &this_ip_port_,
+                                    int32_t max_retries_,
+                                    std::string master_ip_port_,
+                                    STATE state_
+                                ){
+    state=state_;
+    election_timeout = std::chrono::milliseconds(election_timeout_);
+    heartbeat_timeout = std::chrono::milliseconds(heartbeat_timeout_);
+    max_retries = max_retries_;
+    last_contact = std::chrono::system_clock::now();
+    last_voted = last_contact;
+    this_ip_port=this_ip_port_;
+    if(master_ip_port_!=""){
+        update_master(master_ip_port_,0);
+    }
+    
+}
+
+inline STATE raftManager::get_state(){
+    std::unique_lock<std::mutex> lock(state_mutex);
+    return state;
+}
+
+inline void raftManager::wait_for(std::chrono::milliseconds &timeout){
+        std::this_thread::sleep_for(timeout);
+}
+
+inline int32_t raftManager::get_nodes_cnt(){
+    return (mpp.size()+1);
+}
+
+inline void raftManager::update_master(std::string ip_port,int32_t term_){
+    std::unique_lock<std::mutex> lock(master_info_mutex);
+    master_ip_port=ip_port;
+    term_id=term_;
+    if(ip_port==this_ip_port)return;
+    master_stub=raft::NewStub(grpc::CreateChannel(
+            ip_port, grpc::InsecureChannelCredentials()
+    ));
+}
+
+inline void raftManager::change_state_to(STATE state_, std::string &ip_port,int32_t term_){
+    std::unique_lock<std::mutex> lock(state_mutex);
+    state=state_;
+    update_master(ip_port,term_);
+    if(state==MASTER)stop_heartbeat_sensing();
+}
+inline std::pair<std::string,int32_t> raftManager::get_master(){
+    std::unique_lock<std::mutex> lock(master_info_mutex);
+    return std::make_pair(master_ip_port,term_id);
+}
+
+inline void raftManager::stop_heartbeat_sensing(){
+    std::unique_lock<std::mutex> lock(heartbeat_mutex);
+    run_heartbeat_sensing = false;
+}
+inline void raftManager::update_last_contact(){
+    std::unique_lock<std::mutex> lock(last_contact_mutex);
+    last_contact = std::chrono::system_clock::now();
+}
+
+inline bool raftManager::can_vote(){
+
+}

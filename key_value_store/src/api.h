@@ -12,10 +12,9 @@ private:
     Store* store;
 public:
     Api_impl(std::string &db_path);
-    ::grpc::Status get_rpc(::grpc::ServerContext* context, const ::get_delete* request, ::get_response* response);
-    ::grpc::Status delete_rpc(::grpc::ServerContext* context, const ::get_delete* request, ::put_delete_response* response);
-    ::grpc::Status put_rpc(::grpc::ServerContext* context, const ::put* request, ::put_delete_response* response);
- 
+    ::grpc::Status get_rpc(::grpc::ServerContext* context, const ::store_request* request, ::store_response* response);
+    ::grpc::Status delete_rpc(::grpc::ServerContext* context, const ::store_request* request, ::store_response* response);
+    ::grpc::Status put_rpc(::grpc::ServerContext* context, const ::store_request* request, ::store_response* response);
 };
 
-#endif 
+#endif

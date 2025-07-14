@@ -48,6 +48,7 @@ target_link_libraries(CLIENT
         gRPC::grpc++
 )
 
+add_subdirectory(src/raft)
 add_subdirectory(test)
 
 add_executable(temp src/main.cpp)
