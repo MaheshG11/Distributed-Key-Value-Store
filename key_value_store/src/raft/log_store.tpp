@@ -23,6 +23,14 @@ void logStore<T>::append_entry(T request){
     log_queue.push(request);
     log_queue_lock.unlock();
     log_queue_cv.notify_one();
+    raft_manager_lock.lock();
+    if(raft_manager.get_state()==STATE::MASTER){
+        raft_manager_lock.unlock();
+        raft_manager.broadcast_log_entry(request);
+        return;
+    }
+    raft_manager_lock.unlock();
+
 }
 
 template <typename T>

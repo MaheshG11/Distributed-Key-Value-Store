@@ -34,6 +34,7 @@ public:
     std::chrono::milliseconds election_timeout,heartbeat_timeout;
     std::chrono::time_point<std::chrono::system_clock> last_contact,last_voted;
     std::string this_ip_port;
+    std::map<std::string,STUB> mpp;
 
     raftManager(int32_t election_timeout_,
                                     int32_t heartbeat_timeout_,
@@ -61,11 +62,12 @@ public:
     
     inline void stop_heartbeat_sensing();
     inline STATE get_state();
-    inline void change_state_to(STATE state_, std::string &ip_port,int32_t term_);
+    inline bool change_state_to(STATE state_, std::string &ip_port,int32_t term_);
     inline std::pair<std::string,int32_t> get_master();
     inline void update_last_contact();
-    // inline void update_last_contact();
+    inline void update_last_voted();
     inline bool can_vote();
+    
 
 private:
 
@@ -77,14 +79,13 @@ private:
                 heartbeat_mutex;
     std::string master_ip_port="";
     std::unique_ptr<raft::Stub> master_stub;
-    std::map<std::string,STUB> mpp;
+    
     std::atomic<bool> run_heartbeat_sensing = false,is_running=false;
     std::condition_variable heartbeat_cv;
 
-
+    void share_cluster_info_with(std::string ip_port);
 
     inline void wait_for(std::chrono::milliseconds &timeout);
-    
     inline int32_t get_nodes_cnt();
     
     template <typename Func, typename... Args>
@@ -110,6 +111,7 @@ private:
     }
 
     inline void update_master(std::string ip_port,int32_t term_);
+    
 };
 
 template <typename T>

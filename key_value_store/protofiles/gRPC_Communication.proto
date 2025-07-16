@@ -22,8 +22,6 @@ service raft{
   rpc heart_beat(heart_request) returns (beats_response);
   rpc vote_rpc(vote_request) returns(vote_response);
   rpc new_master(master_change_request) returns (master_change_response);
-
-  rpc join_cluster(join_cluster_request) returns (join_cluster_response);
   rpc update_cluster_member(member_request) returns (member_response);
   
 }
@@ -69,13 +67,6 @@ message vote_response{
   int32 term=2;
 }
 
-message join_cluster_request{
-  string joining_key=1;
-}
-message join_cluster_response{
-  bool success=1;
-}
-
 message master_change_request{
   int32 term=1;
   string ip_port=2;
@@ -88,6 +79,7 @@ message master_change_response{
 message member_request{
   bool to_drop=1;
   string ip_port=2;
+  string cluster_key=3;
 }
 message member_response{
   bool success=1;
