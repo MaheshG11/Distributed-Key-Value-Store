@@ -37,6 +37,8 @@ message log_response{
   bool success=1;
   int32 term=2;
   string master_ip_port=3;
+
+  string value=4;
   
 }
 

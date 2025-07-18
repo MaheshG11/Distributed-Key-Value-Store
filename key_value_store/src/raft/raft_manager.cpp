@@ -1,8 +1,7 @@
 #include "raft_manager.h"
 #include <thread>  
 
-std::string empty_string="";
-bool FALSE = false;
+
 
 STUB::STUB(std::string &ip_port){
     s1=key_value_store_rpc::NewStub(grpc::CreateChannel(
@@ -13,7 +12,7 @@ STUB::STUB(std::string &ip_port){
     ));
 }
 
-void raftManager::add_node_to_cluster(std::string &ip_port){
+void raftManager::add_node_to_cluster(std::string ip_port){
     STUB s(ip_port);
     mpp.insert(std::move(std::make_pair(ip_port,std::move(s))));
 
@@ -113,7 +112,7 @@ bool raftManager::broadcast_member_update(::member_request request){
     }
 
     if(cnt>(get_nodes_cnt()/2)) {
-        share_cluster_info_with(request->ip_port(),request->cluster_key());
+        share_cluster_info_with(request.ip_port(),request.cluster_key());
     
         return true;
     
@@ -162,7 +161,7 @@ void raftManager::start_heartbeat_sensing(){
                     master_info_lock.unlock();
                     continue;
                 } else if(response.term()>term_id
-                    && response.master_ip_port() != empty_string)
+                    && response.master_ip_port() != "")
                 {
                     update_master(response.master_ip_port(),response.term());
                     master_info_lock.unlock();
@@ -192,7 +191,7 @@ void raftManager::start_voting(){
         std::chrono::system_clock::now()-last_voted
     );
     if(diff<=election_timeout)return;
-    std::string empty_string=empty_string;
+    // std::string ""="";
     
     
     ::vote_request request;
@@ -200,7 +199,7 @@ void raftManager::start_voting(){
     std::unique_lock<std::mutex> master_info_lock(master_info_mutex);
     int32_t term_id_=term_id;
     master_info_lock.unlock();
-    change_state_to(CANDIDATE,empty_string,term_id_+1);
+    change_state_to(CANDIDATE,"",term_id_+1);
     request.set_term(term_id_+1);
     grpc::ClientContext context;
     std::vector<::vote_response> response(mpp.size());
@@ -246,7 +245,7 @@ void raftManager::start_voting(){
     }
     else{
         master_info_lock.lock();
-        change_state_to(FOLLOWER,empty_string,term_id_);
+        change_state_to(FOLLOWER,"",term_id_);
         master_info_lock.unlock();
     }  
 }
@@ -293,20 +292,22 @@ raftManager::raftManager(int32_t election_timeout_,
     last_contact = std::chrono::system_clock::now();
     last_voted = last_contact;
     this_ip_port=this_ip_port_;
-    if(master_ip_port_!=empty_string){
+    if(master_ip_port_!=""){
         update_master(master_ip_port_,0);
     }
     
+    
 }
 
-void share_cluster_info_with(std::string ip_port,std::string cluster_key){
+void raftManager::share_cluster_info_with(std::string ip_port,std::string cluster_key){
     std::vector<::member_request> request;
     ::member_response response;
     int32_t j=0;
+    grpc::ClientContext context;
     auto it = mpp.find(ip_port);
     for(auto &i : mpp){
         request[j].set_cluster_key(cluster_key);
-        request[j].set_to_drop(FALSE);
+        request[j].set_to_drop(false);
         request[j].set_ip_port(i.first);
         int j_copy=j;
         try {
@@ -315,7 +316,7 @@ void share_cluster_info_with(std::string ip_port,std::string cluster_key){
                 [&](){
                     return retry(
                                 [&](grpc::ClientContext* ctx, const ::member_request& req, ::member_response* res) {
-                                    return it->second->update_cluster_member(ctx, req, res);
+                                    return (it->second).s2->update_cluster_member(ctx, req, res);
                                 },
                                 heartbeat_timeout,
                                 &context, request[j_copy], &(response)
@@ -330,63 +331,3 @@ void share_cluster_info_with(std::string ip_port,std::string cluster_key){
     
 }
 
-inline STATE raftManager::get_state(){
-    std::unique_lock<std::mutex> lock(state_mutex);
-    return state;
-}
-
-inline void raftManager::wait_for(std::chrono::milliseconds &timeout){
-        std::this_thread::sleep_for(timeout);
-}
-
-inline int32_t raftManager::get_nodes_cnt(){
-    return (mpp.size()+1);
-}
-
-inline void raftManager::update_master(std::string ip_port,int32_t term_){
-    std::unique_lock<std::mutex> lock(master_info_mutex);
-    master_ip_port=ip_port;
-    term_id=term_;
-    if(ip_port==this_ip_port)return;
-    else if(ip_port==empty_string){
-        master_stub=nullptr;
-        return;
-    }
-    master_stub=raft::NewStub(grpc::CreateChannel(
-            ip_port, grpc::InsecureChannelCredentials()
-    ));
-}
-
-inline bool raftManager::change_state_to(STATE state_, std::string &master_ip_port,int32_t term_){
-    std::unique_lock<std::mutex> lock(state_mutex);
-    if(state==MASTER && state_==FOLLOWER){
-        start_heartbeat_sensing();
-    }
-    state=state_;
-    update_master(master_ip_port,term_);
-    if(state==MASTER)stop_heartbeat_sensing();
-}
-inline std::pair<std::string,int32_t> raftManager::get_master(){
-    std::unique_lock<std::mutex> lock(master_info_mutex);
-    return std::make_pair(master_ip_port,term_id);
-}
-
-inline void raftManager::stop_heartbeat_sensing(){
-    std::unique_lock<std::mutex> lock(heartbeat_mutex);
-    run_heartbeat_sensing = false;
-}
-inline void raftManager::update_last_contact(){
-    std::unique_lock<std::mutex> lock(last_contact_mutex);
-    last_contact = std::chrono::system_clock::now();
-}
-inline void raftManager::update_last_voted(){
-    std::unique_lock<std::mutex> lock(last_voted_mutex);
-    last_contact = std::chrono::system_clock::now();
-}
-inline bool raftManager::can_vote(int32_t term_id_){
-    std::unique_lock<std::mutex> lock(last_voted_mutex),lock_(master_info_mutex);
-    auto diff=std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now()-last_voted
-            );
-    return (diff>election_timeout) && (term_id_>term_id);
-}

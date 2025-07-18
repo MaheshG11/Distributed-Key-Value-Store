@@ -27,8 +27,11 @@ private:
     std::unique_lock<std::mutex> log_queue_lock,&raft_manager_lock;
     std::thread deque_thread;
     std::atomic<bool> deque_thread_status,force_quit;
+
     void start_();
     virtual void execute_entry(T &request) = 0;
+    void append_entry_(T request);
+
     
 };
 

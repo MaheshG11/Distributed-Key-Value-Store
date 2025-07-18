@@ -73,6 +73,9 @@
         "forward_list": "cpp",
         "span": "cpp",
         "queue": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "*.tpp": "cpp",
+        "expected": "cpp",
+        "scoped_allocator": "cpp"
     }
 }

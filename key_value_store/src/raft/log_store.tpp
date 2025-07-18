@@ -17,8 +17,17 @@ logStore<T>::logStore(raftManager &raft_manager,
 template <typename T>
 logStore<T>::~logStore(){}
 
+
 template <typename T>
 void logStore<T>::append_entry(T request){
+    std::async(std::launch::async, [&](T request){
+        this->append_entry_(request);
+    }, request);
+
+}
+
+template <typename T>
+void logStore<T>::append_entry_(T request){
     log_queue_lock.lock();
     log_queue.push(request);
     log_queue_lock.unlock();
@@ -39,7 +48,7 @@ void logStore<T>::start_deque_thread(){
     log_queue_cv.wait(log_queue_lock,[this](){
             return deque_thread_status==false;
         }
-    )
+    );
     deque_thread=std::thread(&logStore::start_,this);
     log_queue_lock.unlock();
 }
@@ -81,7 +90,7 @@ void logStore<T>::start_(){
     while(deque_thread_status){
         log_queue_cv.wait(log_queue_lock,[this](){
             return log_queue.size()>0 || force_quit;
-        })
+        });
         log_queue_lock.unlock();
         raft_manager_lock.lock();
         if(force_quit || raft_manager.get_state()!=MASTER){
@@ -94,22 +103,19 @@ void logStore<T>::start_(){
         T request = log_queue.front();
         log_queue.pop();
         log_queue_lock.unlock();
-        request.set_entry_id(entry_id);
-        raft_manager_lock.lock();
-        if()
-        {
-            bool is_commited=false;
-            if(raft_manager.broadcast_log_entry(request)){
-                if(raft_manager.broadcast_commit(entry_id,true)){
-                    entry_id++;
-                    is_commited=true;
-                }
-            } else if(is_commited==false){
-                raft_manager.broadcast_commit(entry_id,is_commited);
+        request.set_entry_id(entry_id);        
+
+        bool is_commited=false;
+        if(raft_manager.broadcast_log_entry(request)){
+            if(raft_manager.broadcast_commit(entry_id,true)){
+                entry_id++;
+                is_commited=true;
             }
-            if(is_commited)execute_entry(request);
+        } else if(is_commited==false){
+            raft_manager.broadcast_commit(entry_id,is_commited);
         }
-        raft_manager_lock.unlock();
+        if(is_commited)execute_entry(request);
+
         
     }
     deque_thread_status = false;

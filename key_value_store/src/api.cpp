@@ -1,19 +1,17 @@
 #include <grpcpp/grpcpp.h>
 #include "protofiles/gRPC_Communication.grpc.pb.h"
 #include "protofiles/gRPC_Communication.pb.h"
-#include "store.h"
 #include "api.h"
 #include <string>
 
-Api_impl::Api_impl(std::string &db_path){
-    store=new Store(db_path);
-
-}
+Api_impl::Api_impl(Store& store,
+    std::shared_ptr<logStoreImpl> log_store_ptr):
+    store(store),log_store_ptr(log_store_ptr){}
 
 ::grpc::Status Api_impl::get_rpc(::grpc::ServerContext* context, const ::store_request* request, ::store_response* response){
     std::string key=request->key();
+    std::pair<std::string,bool> res=(store.GET(key));
 
-    std::pair<std::string,bool> res=(store->GET(key));
     response->set_value(res.first);
     response->set_ok((bool)res.second);
     if(res.second){
@@ -24,21 +22,23 @@ Api_impl::Api_impl(std::string &db_path){
 }
 
 ::grpc::Status Api_impl::delete_rpc(::grpc::ServerContext* context, const ::store_request* request, ::store_response* response){
+    ::log_request request_;
     std::string key=request->key();
-    bool res=(store->DELETE(key));
-    response->set_ok(res);
-    if(res){
-        return grpc::Status::OK;
-    }
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "key not found");
+    request_.set_key(key);
+    request_.set_request_type((int32_t)0);
+    log_store_ptr->append_entry(request_);
+    
+    return grpc::Status::OK;
 }
 
 ::grpc::Status Api_impl::put_rpc(::grpc::ServerContext* context, const ::store_request* request, ::store_response* response){
-    std::pair<std::string,std::string> key_value=std::make_pair(request->key(),request->value());
-    bool res=(store->PUT(key_value));
-    response->set_ok(res);
-    if(res){
-        return grpc::Status::OK;
-    }
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "INTERNAL_SERVER_ERROR");
+    ::log_request request_;
+    response->set_ok(true);
+    request_.set_key(request->key());
+    request_.set_value(request->value());
+
+    request_.set_request_type((int32_t)1);
+    log_store_ptr->append_entry(request_);
+    
+    return grpc::Status::OK;
 }

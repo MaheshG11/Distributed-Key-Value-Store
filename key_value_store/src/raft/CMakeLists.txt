@@ -1,6 +1,8 @@
 add_library(RAFT STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/log_store.h
+    # ${CMAKE_CURRENT_SOURCE_DIR}/log_store.h
     ${CMAKE_CURRENT_SOURCE_DIR}/raft_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/raft_manager.h
+    # ${CMAKE_CURRENT_SOURCE_DIR}/raft_server.h
 )
 
 target_link_libraries(RAFT PUBLIC 
