@@ -22,14 +22,14 @@ template <typename T>
         {
             std::async(std::launch::async, [&](int32_t entry_id_,bool commit){
                 log_store_ptr->commit(entry_id_,commit);
-            }, request->entry_id(), false);
-            response->set_success(false);
+            }, request->entry_id(), FALSE);
+            response->set_success(FALSE);
         }
     else{
         std::async(std::launch::async, [&](int32_t entry_id_,bool commit){
             log_store_ptr->commit(entry_id_,commit);
         }, request->entry_id(), request->commit());
-        response->set_success(true);
+        response->set_success(TRUE);
     }
     raft_manager_lock.unlock();
     return grpc::Status::OK;
@@ -39,10 +39,10 @@ template <typename T>
 ::grpc::Status raftServer<T>::heart_beat(::grpc::ServerContext* context, const ::heart_request* request, ::beats_response* response){
     raft_manager_lock.lock();
     if(raft_manager.get_state()==STATE::MASTER){
-        response->set_is_master(true);
+        response->set_is_master(TRUE);
 
     } else{
-        response->set_is_master(false);
+        response->set_is_master(FALSE);
     }
     response->set_term(raft_manager.term_id);
     response->set_master_ip_port((raft_manager.get_master()).first);
@@ -102,8 +102,12 @@ template <typename T>
             
         }
         else raft_manager_lock.unlock();
+        response->set_success(TRUE);
+
     }
-    response->set_success(TRUE);
+    else{
+        response->set_success(FALSE);
+    }
     return grpc::Status::OK;
 }
 

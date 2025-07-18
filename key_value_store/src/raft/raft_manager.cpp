@@ -1,7 +1,46 @@
 #include "raft_manager.h"
-#include <thread>  
 
-
+raftManager::raftManager(int32_t election_timeout_,
+                                    int32_t heartbeat_timeout_,
+                                    std::string &this_ip_port_,
+                                    int32_t max_retries_,
+                                    std::string master_ip_port_,
+                                    STATE state_,
+                                    std::string cluster_key_
+                                ){
+    state=state_;
+    cluster_key=cluster_key_;
+    election_timeout = std::chrono::milliseconds(election_timeout_);
+    heartbeat_timeout = std::chrono::milliseconds(heartbeat_timeout_);
+    max_retries = max_retries_;
+    last_contact = std::chrono::system_clock::now();
+    last_voted = last_contact;
+    this_ip_port=this_ip_port_;
+    if(master_ip_port_!=""){
+        update_master(master_ip_port_,0);
+    }
+    if(state_==FOLLOWER){
+        grpc::ClientContext context;
+        ::member_response response;
+        ::member_request request;
+        request.set_cluster_key(cluster_key);
+        request.set_to_drop(false);
+        request.set_ip_port(this_ip_port_);
+        grpc::Status status=master_stub->
+        update_cluster_member(&context,request,&response);
+        if(!status.ok()){
+            std::cerr<<"Unable to reach master\n"; 
+            std::cerr<<"either master is not running OR master ip-port is incorrect\n";
+            std::cerr<<"master ip-port you entered:"<<master_ip_port_<<'\n';
+            exit(EXIT_FAILURE); 
+        }
+        else if(!response.success()){
+            std::cerr<<"Cluster Key is incorrect\n";
+            std::cerr<<"Cluster Key you entered:"<<cluster_key_<<'\n';
+            exit(EXIT_FAILURE); 
+        }
+    }
+}
 
 STUB::STUB(std::string &ip_port){
     s1=key_value_store_rpc::NewStub(grpc::CreateChannel(
@@ -33,12 +72,12 @@ bool raftManager::broadcast_commit(int64_t entry_id, bool commit){
 
     grpc::ClientContext context;
     std::vector<::commit_response> response(mpp.size());
-    std::vector<std::future<grpc::Status>> status;
+    std::vector<std::future<grpc::Status>> status(mpp.size());
     int cnt=0,j=0;
     for(auto &i : mpp){
         try {
             int32_t j_copy=j++;
-            status.push_back(std::async
+            status[j_copy]=std::async
                 (std::launch::async,
                     [&,j_copy](){
                         return retry(
@@ -49,8 +88,7 @@ bool raftManager::broadcast_commit(int64_t entry_id, bool commit){
                             &context, request, &(response[j_copy])
                         );
                     }
-                )
-            );
+                );
         } catch (const std::exception& e) {
             continue;
         }
@@ -75,12 +113,12 @@ bool raftManager::broadcast_member_update(::member_request request){
 
     grpc::ClientContext context;
     std::vector<::member_response> response(mpp.size());
-    std::vector<std::future<grpc::Status>> status;
+    std::vector<std::future<grpc::Status>> status(mpp.size());
     int cnt=0,j=0;
     for(auto &i : mpp){
         try {
             int32_t j_copy=j++;
-            status.push_back(std::async
+            status[j_copy]=std::async
                 (std::launch::async,
                     [&,j_copy](){
 
@@ -92,8 +130,7 @@ bool raftManager::broadcast_member_update(::member_request request){
                             &context, request, &(response[j_copy])
                         );
                     }
-                )
-            );
+                );
         } catch (const std::exception& e) {
             continue;
         }
@@ -203,12 +240,12 @@ void raftManager::start_voting(){
     request.set_term(term_id_+1);
     grpc::ClientContext context;
     std::vector<::vote_response> response(mpp.size());
-    std::vector<std::future<grpc::Status>> status;
+    std::vector<std::future<grpc::Status>> status(mpp.size());
     int cnt=0,j=0;
     for(auto &i : mpp){
         try {
             int32_t j_copy=j++;
-            status.push_back(std::async
+            status[j_copy]=std::async
                 (std::launch::async,
                     [&,j_copy](){
                         return retry(
@@ -219,8 +256,7 @@ void raftManager::start_voting(){
                                 &context, request, &(response[j_copy])
                             );
                     }
-                )
-            );
+                );
         } catch (const std::exception& e) {
             continue;
         }
@@ -278,28 +314,8 @@ void raftManager::broadcast_new_master(){
     }
 }
 
-raftManager::raftManager(int32_t election_timeout_,
-                                    int32_t heartbeat_timeout_,
-                                    std::string &this_ip_port_,
-                                    int32_t max_retries_,
-                                    std::string master_ip_port_,
-                                    STATE state_
-                                ){
-    state=state_;
-    election_timeout = std::chrono::milliseconds(election_timeout_);
-    heartbeat_timeout = std::chrono::milliseconds(heartbeat_timeout_);
-    max_retries = max_retries_;
-    last_contact = std::chrono::system_clock::now();
-    last_voted = last_contact;
-    this_ip_port=this_ip_port_;
-    if(master_ip_port_!=""){
-        update_master(master_ip_port_,0);
-    }
-    
-    
-}
 
-void raftManager::share_cluster_info_with(std::string ip_port,std::string cluster_key){
+void raftManager::share_cluster_info_with(std::string ip_port,std::string cluster_key_){
     std::vector<::member_request> request;
     ::member_response response;
     int32_t j=0;

@@ -26,12 +26,12 @@ bool raftManager::broadcast_log_entry(T &request){
     request.set_term(get_master().second);
     grpc::ClientContext context;
     std::vector<::log_response> response(mpp.size());
-    std::vector<std::future<grpc::Status>> status;
+    std::vector<std::future<grpc::Status>> status(mpp.size());
     int cnt=0,j=0;
     for(auto &i : mpp){
         try {
             int32_t j_copy=j++;
-            status.push_back(std::async
+            status[j_copy]=std::async
                 (std::launch::async,
                     [&,j_copy](){
                         return retry(
@@ -42,8 +42,7 @@ bool raftManager::broadcast_log_entry(T &request){
                                 &context, request, &(response[j_copy])
                             );
                     }
-                )
-            );
+                );
         } catch (const std::exception& e) {
             continue;
         }
@@ -89,8 +88,7 @@ inline void raftManager::update_master(std::string ip_port,int32_t term_){
     std::unique_lock<std::mutex> lock(master_info_mutex);
     master_ip_port=ip_port;
     term_id=term_;
-    if(ip_port==this_ip_port)return;
-    else if(ip_port==""){
+    if(ip_port=="" || ip_port==this_ip_port){
         master_stub=nullptr;
         return;
     }

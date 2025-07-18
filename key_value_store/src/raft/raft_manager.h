@@ -12,6 +12,9 @@
 #include <atomic>
 #include <condition_variable>
 #include <stdexcept>
+#include <thread>  
+#include <cstdlib> 
+
 // #include "args.h"
 
 
@@ -41,7 +44,8 @@ public:
                                     std::string &this_ip_port_,
                                     int32_t max_retries_,
                                     std::string master_ip_port_,
-                                    STATE state_
+                                    STATE state_,
+                                    std::string cluster_key
                                 );
     ~raftManager(){};
 
@@ -78,13 +82,13 @@ private:
                 last_voted_mutex,
                 state_mutex,
                 heartbeat_mutex;
-    std::string master_ip_port="";
+    std::string master_ip_port="",cluster_key;
     std::unique_ptr<raft::Stub> master_stub;
     
     std::atomic<bool> run_heartbeat_sensing = false,is_running=false;
     std::condition_variable heartbeat_cv;
 
-    void share_cluster_info_with(std::string ip_port,std::string cluster_key);
+    void share_cluster_info_with(std::string ip_port,std::string cluster_key_);
     inline void wait_for(std::chrono::milliseconds &timeout);
     inline int32_t get_nodes_cnt();
     

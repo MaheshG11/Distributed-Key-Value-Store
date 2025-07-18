@@ -73,12 +73,12 @@ target_link_libraries(CLIENT
         gRPC::grpc++
 )
 
-add_subdirectory(test)
+# add_subdirectory(test)
 
-add_executable(temp src/main.cpp 
+add_executable(distributed_kv_store src/main.cpp 
                 )
                 
-target_include_directories(temp
+target_include_directories(distributed_kv_store
     PUBLIC 
         ${PROJECT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/protofiles
@@ -86,7 +86,7 @@ target_include_directories(temp
         ${PROJECT_SOURCE_DIR}/src/raft
 )
 
-target_link_libraries(temp 
+target_link_libraries(distributed_kv_store
     PRIVATE 
         API
         LOG_STORE_IMPL
