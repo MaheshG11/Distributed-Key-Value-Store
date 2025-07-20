@@ -9,10 +9,36 @@
 #include "store.h"
 #include <random>
 
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
 using namespace std;
+std::string getLocalIP() {
+  struct ifaddrs *interfaces = nullptr;
+  struct ifaddrs *ifa = nullptr;
+  char ip[INET_ADDRSTRLEN];
+  if (getifaddrs(&interfaces) == -1) {
+   return ""; // Error retrieving interfaces
+  }
+  // Loop through the list of interfaces
+  for (ifa = interfaces; ifa != nullptr; ifa = ifa->ifa_next) {
+   // Check for IPv4 address and non-loopback interfaces
+   if (ifa->ifa_addr->sa_family == AF_INET && 
+    !(ifa->ifa_flags & IFF_LOOPBACK)) {
+    struct sockaddr_in *sa_in = reinterpret_cast<struct sockaddr_in *>(ifa->ifa_addr);
+    inet_ntop(AF_INET, &(sa_in->sin_addr), ip, INET_ADDRSTRLEN);
+    freeifaddrs(interfaces);
+    return std::string(ip); // Return the first valid IP address
+   }
+  }
+  freeifaddrs(interfaces);
+  return ""; // No valid IP address found 
+ }
 
 void RunServer(
-  int32_t election_timeout_,
+  int32_t election_timeout_low,
+  int32_t election_timeout_high,
   int32_t heartbeat_timeout_,
   int32_t max_retries_,
   STATE state_, 
@@ -21,36 +47,39 @@ void RunServer(
   std::string path,
   std::string cluster_key ) 
 {
+  std::string port=server_address;
   if(server_address=="null"){
     server_address="";
   }
-  else server_address="0.0.0.0:"+server_address;
+  else {
+    server_address=getLocalIP()+":"+port;
+  }
   Store store(path);
   raftManager raft_manager(
-                    election_timeout_,
+                    election_timeout_low,
+                    election_timeout_high,
                     heartbeat_timeout_,
                     server_address,
                     max_retries_,
                     master_ip_port_,
                     state_,
                     cluster_key);
-  // cout<<"here\n";
   std::mutex raft_manager_mutex;
-  std::unique_lock<std::mutex> raft_manager_lock(raft_manager_mutex,std::defer_lock);
-  auto log_store_ = std::make_shared<logStoreImpl>(raft_manager,raft_manager_lock,store);
-  cout<<"now here\n";
-  // raftServer<::log_request> raft_service(log_store_,raft_manager,raft_manager_lock,cluster_key);
-  // Api_impl service(store,log_store_);
+  auto log_store_ = std::make_shared<logStoreImpl>(raft_manager,raft_manager_mutex,store);
+  log_store_->set_ptr(log_store_);
+  raftServer<::log_request> raft_service(log_store_,raft_manager,raft_manager_mutex,cluster_key);
+  Api_impl service(store,log_store_);
   
 
-  // grpc::ServerBuilder builder;
-  // builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  // builder.RegisterService(&service);
+  grpc::ServerBuilder builder;
+  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  builder.RegisterService(&service);
+  builder.RegisterService(&raft_service);
 
-  // std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-  // std::cout << "Server listening on " << server_address << std::endl;
-
-  // server->Wait();
+  std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+  std::cout << "Server listening on " << server_address << std::endl;
+  cout<<(getLocalIP()+":"+port)<<"\n";
+  server->Wait();
 }
 
 
@@ -93,7 +122,7 @@ int main(int argc, char* argv[]){
           throw std::runtime_error("incorrect state assignment");
         }
         RunServer(
-          get_random(stoi(argv[1]),stoi(argv[2])),
+          stoi(argv[1]),stoi(argv[2]),
           stoi(argv[3]),
           stoi(argv[4]),
           state_, 
@@ -110,3 +139,4 @@ int main(int argc, char* argv[]){
     }
 
 }
+

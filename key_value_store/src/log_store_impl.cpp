@@ -7,9 +7,9 @@
 class logStoreImpl : public logStore<::log_request>{
 public:
     logStoreImpl(raftManager &raft_manager,
-        std::unique_lock<std::mutex> &raft_manager_lock,
+        std::mutex &raft_manager_mutex,
         Store &store
-    ):logStore<::log_request>(raft_manager,raft_manager_lock),store(store){}
+    ):logStore<::log_request>(raft_manager,raft_manager_mutex),store(store){}
 
     void execute_entry(::log_request &request) override {
         if(request.request_type()==0){

@@ -76,6 +76,14 @@
         "regex": "cpp",
         "*.tpp": "cpp",
         "expected": "cpp",
-        "scoped_allocator": "cpp"
+        "scoped_allocator": "cpp",
+        "ranges": "cpp",
+        "valarray": "cpp",
+        "stacktrace": "cpp",
+        "__tree": "cpp",
+        "map": "cpp",
+        "set": "cpp",
+        "stack": "cpp",
+        "unordered_set": "cpp"
     }
 }

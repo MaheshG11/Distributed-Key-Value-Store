@@ -15,7 +15,7 @@ class raftServer : public raft::Service{
 public:
     raftServer(std::shared_ptr<logStore<T>> log_store_ptr,
         raftManager &raft_manager,
-        std::unique_lock<std::mutex> &raft_manager_lock,
+        std::mutex &raft_manager_mutex,
         std::string cluster_key
     );
     ::grpc::Status send_log_entry(::grpc::ServerContext* context, const T* request, ::log_response* response);
@@ -29,7 +29,7 @@ private:
     std::string cluster_key;
     std::shared_ptr<logStore<T>> log_store_ptr;
     raftManager &raft_manager;
-    std::unique_lock<std::mutex> &raft_manager_lock;
+    std::mutex &raft_manager_mutex;
 
 };
 

@@ -11,7 +11,6 @@ Api_impl::Api_impl(Store& store,
 ::grpc::Status Api_impl::get_rpc(::grpc::ServerContext* context, const ::store_request* request, ::store_response* response){
     std::string key=request->key();
     std::pair<std::string,bool> res=(store.GET(key));
-
     response->set_value(res.first);
     response->set_ok((bool)res.second);
     if(res.second){
@@ -25,9 +24,10 @@ Api_impl::Api_impl(Store& store,
     ::log_request request_;
     std::string key=request->key();
     request_.set_key(key);
-    request_.set_request_type((int32_t)0);
+    request_.set_request_type((int32_t)1);
+    request_.set_entry_id((int32_t)-1);
     log_store_ptr->append_entry(request_);
-    
+    response->set_ok(true);
     return grpc::Status::OK;
 }
 
@@ -36,8 +36,9 @@ Api_impl::Api_impl(Store& store,
     response->set_ok(true);
     request_.set_key(request->key());
     request_.set_value(request->value());
+    request_.set_entry_id((int32_t)-1);
 
-    request_.set_request_type((int32_t)1);
+    request_.set_request_type((int32_t)0);
     log_store_ptr->append_entry(request_);
     
     return grpc::Status::OK;
