@@ -1,3 +1,4 @@
+#pragma once
 #ifndef API
 #define API
 #include <grpcpp/grpcpp.h>
@@ -5,67 +6,19 @@
 #include "protofiles/gRPC_Communication.pb.h"
 #include "store.h"
 #include <string>
+#include <memory>
+#include "log_store_impl.cpp"
 
-
-class CallDataBase {
-    public:
-        virtual void Proceed() = 0;
-        virtual ~CallDataBase() = default;
-};
-
-class Api_impl {
+class Api_impl : public key_value_store_rpc :: Service{
 
 private:
-
-    class get_rpc_CallData:public CallDataBase{
-    private:
-        key_value_store_rpc::AsyncService* service_;
-        ::grpc::ServerCompletionQueue* cq_;
-        ::grpc::ServerContext ctx_;
-        ::get_delete request_;
-        ::get_response reply_;
-        ::grpc::ServerAsyncResponseWriter<::get_response >responder_;
-        enum{CREATE,PROCESS,FINISH} status_;
-    public:
-        void Proceed() override;
-        
-        get_rpc_CallData(key_value_store_rpc::AsyncService* service, ::grpc::ServerCompletionQueue* cq);
-    };
-    class delete_rpc_CallData:public CallDataBase{
-    private:
-        key_value_store_rpc::AsyncService* service_;
-        ::grpc::ServerCompletionQueue* cq_;
-        ::grpc::ServerContext ctx_;
-        ::get_delete request_;
-        ::put_delete_response  reply_;
-        ::grpc::ServerAsyncResponseWriter<::put_delete_response >responder_;
-        enum{CREATE,PROCESS,FINISH} status_;
-    public:
-        void Proceed() override;
-        delete_rpc_CallData(key_value_store_rpc::AsyncService* service, ::grpc::ServerCompletionQueue* cq);
-    };
-    class put_rpc_CallData:public CallDataBase{
-    private:
-        key_value_store_rpc::AsyncService* service_;
-        ::grpc::ServerCompletionQueue* cq_;
-        ::grpc::ServerContext ctx_;
-        ::put request_;
-        ::put_delete_response reply_;
-        ::grpc::ServerAsyncResponseWriter<::put_delete_response >responder_;
-        enum{CREATE,PROCESS,FINISH} status_;
-    public:
-        void Proceed() override;
-        put_rpc_CallData(key_value_store_rpc::AsyncService* service, ::grpc::ServerCompletionQueue* cq);
-    };
-    void HandleRpcs();
-    std::unique_ptr<::grpc::ServerCompletionQueue> cq_;
-    std::unique_ptr<::grpc::Server> server_;
-    key_value_store_rpc::AsyncService service_;
+    Store& store;
+    std::shared_ptr<logStoreImpl> log_store_ptr;
 public:
-    void Run();
-    Api_impl(std::string &server_address,std::string &path);
-    std::string server_address;
-
+    Api_impl(Store& store,std::shared_ptr<logStoreImpl> log_store_ptr);
+    ::grpc::Status get_rpc(::grpc::ServerContext* context, const ::store_request* request, ::store_response* response);
+    ::grpc::Status delete_rpc(::grpc::ServerContext* context, const ::store_request* request, ::store_response* response);
+    ::grpc::Status put_rpc(::grpc::ServerContext* context, const ::store_request* request, ::store_response* response);
 };
 
-#endif 
+#endif

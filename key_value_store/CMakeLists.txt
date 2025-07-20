@@ -16,6 +16,7 @@ include_directories($ENV{HOME}/.local/include)
 
 add_subdirectory(protofiles)
 
+add_subdirectory(src/raft)
 
 #store
 add_library(store STATIC src/store.cpp)
@@ -27,12 +28,36 @@ target_include_directories(API
     PUBLIC 
         ${PROJECT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/protofiles
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/src/raft
 )
+
 target_link_libraries(API 
-    PRIVATE 
+    PUBLIC
         store 
         gRPC_Communication_Lib 
         gRPC::grpc++
+        RAFT
+)
+
+#LOG STORE IMPL
+add_library(LOG_STORE_IMPL STATIC 
+        src/log_store_impl.cpp
+        src/raft/raft_manager.cpp)
+target_include_directories(LOG_STORE_IMPL
+    PUBLIC 
+        ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/protofiles
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/src/raft
+)
+
+target_link_libraries(LOG_STORE_IMPL
+    PUBLIC
+        store
+        gRPC_Communication_Lib 
+        gRPC::grpc++
+        RAFT
 )
 
 #client
@@ -48,11 +73,27 @@ target_link_libraries(CLIENT
         gRPC::grpc++
 )
 
-add_subdirectory(test)
+# add_subdirectory(test)
 
-add_executable(temp src/main.cpp)
+add_executable(distributed_kv_store src/main.cpp 
+                )
+                
+target_include_directories(distributed_kv_store
+    PUBLIC 
+        ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/protofiles
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/src/raft
+)
 
-target_link_libraries(temp PRIVATE API)
+target_link_libraries(distributed_kv_store
+    PRIVATE 
+        API
+        LOG_STORE_IMPL
+        RAFT
+        gRPC_Communication_Lib 
+        gRPC::grpc++
+)
 
 
 # target_link_libraries(Node

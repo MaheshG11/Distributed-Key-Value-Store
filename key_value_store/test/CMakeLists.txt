@@ -1,13 +1,14 @@
 add_executable(start_test 
     store_test.cpp
     api_test.cpp
+    raft_manager_test.cpp
 )
 target_link_libraries(start_test 
     PRIVATE 
         # Add the libraries which are being tested
         store
         API
-        CLIENT
+        RAFT
         # Add the libraries on which the tests depends
         gtest 
         gtest_main 
@@ -23,4 +24,5 @@ target_include_directories(start_test
         ${PROJECT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/protofiles
         ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/src/raft
 )

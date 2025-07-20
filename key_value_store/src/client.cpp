@@ -8,11 +8,11 @@ Client::Client(std::string &ip_port){
 }
 
 bool Client::PUT(std::pair<std::string,std::string> &key_value){
-    ::put request;
+    ::store_request request;
     request.set_key(key_value.first);
     request.set_value(key_value.second);
     grpc::ClientContext context;
-    ::put_delete_response response;
+    ::store_response response;
     grpc::Status status = stub_->put_rpc(&context,request,&response);
     if(status.ok())return (bool)response.ok();
     else {
@@ -22,10 +22,10 @@ bool Client::PUT(std::pair<std::string,std::string> &key_value){
 
 }
 bool Client::DELETE(std::string &key){
-    ::get_delete request;
+    ::store_request request;
     request.set_key(key);
     grpc::ClientContext context;
-    ::put_delete_response response;
+    ::store_response response;
     grpc::Status status = stub_->delete_rpc(&context,request,&response);
     if(status.ok())return (bool)response.ok();
     else {
@@ -35,10 +35,10 @@ bool Client::DELETE(std::string &key){
     
 }
 std::pair<std::string,bool> Client::GET(std::string &key){
-    ::get_delete request;
+    ::store_request request;
     request.set_key(key);
     grpc::ClientContext context;
-    ::get_response response;
+    ::store_response response;
     grpc::Status status = stub_->get_rpc(&context,request,&response);
     std::pair<std::string,bool> p;
     if(status.ok()){

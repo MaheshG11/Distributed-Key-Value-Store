@@ -1,23 +1,88 @@
 syntax = "proto3";
 
 service key_value_store_rpc{
-  rpc get_rpc(get_delete) returns (get_response);
-  rpc delete_rpc(get_delete) returns (put_delete_response);
-  rpc put_rpc(put) returns (put_delete_response);
+  rpc get_rpc(store_request) returns (store_response);
+  rpc delete_rpc(store_request) returns (store_response);
+  rpc put_rpc(store_request) returns (store_response);
 }
-message put_delete_response{
+message store_response{
   bool ok=1;
-  // string status_string=3;
+  string key=2;
+  string value=3;
 }
-message get_response{
-  string value=1;
-  bool ok=2;
-  // string status_string=3;
-}
-message get_delete{
-  string key=1;
-}
-message put{
+message store_request{
   string key=1;
   string value=2;
-};
+}
+
+service raft{
+  rpc send_log_entry(log_request) returns (log_response);
+  rpc commit_log_entry(commit_request) returns (commit_response);
+
+  rpc heart_beat(heart_request) returns (beats_response);
+  rpc vote_rpc(vote_request) returns(vote_response);
+  rpc new_master(master_change_request) returns (master_change_response);
+  rpc update_cluster_member(member_request) returns (member_response);
+  
+}
+
+message log_request{
+  int64 entry_id=1;
+  int32 term=2;
+  int32 request_type=3; // 0:put, 1 delete
+  string key=4;
+  string value=5;
+}
+message log_response{
+  bool success=1;
+  int32 term=2;
+  string master_ip_port=3;
+
+  string value=4;
+  
+}
+
+message commit_request{
+  int64 entry_id=1;
+  bool commit=2; // 0: commit this entry, 1 discard this entry
+  int32 term=3;
+}
+message commit_response{
+  bool success=1 ;// 0 : discarded
+}
+
+message heart_request{
+  int32 term=1;
+}
+message beats_response{
+  bool is_master=1;
+  int32 term=2;
+  string master_ip_port=3;
+}
+
+message vote_request{
+  int32 term = 1;
+  string ip_port = 2;
+}
+message vote_response{
+  bool vote=1;
+  int32 term=2;
+}
+
+message master_change_request{
+  int32 term=1;
+  string ip_port=2;
+}
+message master_change_response{
+  bool success=1;
+  int32 term=2;
+}
+
+message member_request{
+  bool to_drop=1;
+  string ip_port=2;
+  string cluster_key=3;
+}
+message member_response{
+  bool success=1;
+}
