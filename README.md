@@ -78,7 +78,7 @@
 
 <!--[![Product Name Screen Shot][product-screenshot]](https://example.com)-->
 
-A high availability distributed key-value store built with rocksdb as base key-value store with <p src="https://raft.github.io/raft.pdf">raft<p/> inspired consensus and leader election algorithm   
+A high availability distributed key-value store built with rocksdb as base key-value store with raft inspired consensus and leader election algorithm   
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
