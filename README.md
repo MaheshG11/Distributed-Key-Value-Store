@@ -211,7 +211,7 @@ Mahesh Ghumare [LinkedIn](https://www.linkedin.com/in/mahesh-ghumare-37894a200/)
 [JQuery.com]: https://img.shields.io/badge/jQuery-0769AD?style=for-the-badge&logo=jquery&logoColor=white
 [JQuery-url]: https://jquery.com 
 [Hugging-face.com]:https://img.shields.io/badge/-RocksDB-FDEE21?style=for-the-badge&logo=RocksDB&logoColor=black
-[Hugging-face-url]:https://huggingface.co/
+[Hugging-face-url]:https://rocksdb.org/
 [C++-shield]:https://img.shields.io/badge/C++-00599C?style=flat-square&logo=C%2B%2B&logoColor=white
 [C++-link]:https://isocpp.org/
 [gRPC-shield]:https://img.shields.io/badge/gRPC-blue?logo=grpc
