@@ -30,7 +30,7 @@
 
 
 <h1 align="center">Distributed Key Value Store</h1>
-<h2 align="center">An attempt to create a high availability distributed key-value store</h2>
+<h2 align="center">An attempt to create a high performance distributed key-value store</h2>
   <p align="center">
     <br />
     <br />
@@ -78,7 +78,7 @@
 
 <!--[![Product Name Screen Shot][product-screenshot]](https://example.com)-->
 
-A high availability distributed key-value store built with rocksdb as base key-value store with raft inspired consensus and leader election algorithm   
+A high performance distributed key-value store built with rocksdb as base key-value store with raft inspired consensus and leader election algorithm   
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
