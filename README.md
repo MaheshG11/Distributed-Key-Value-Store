@@ -112,8 +112,8 @@ This is an example of how to list things you need to use the software and how to
 
 1. Build the docker file 
    ```sh
-   cd Distributed_Key_Value_Store/key_value_store
-   docker image build -t distributed_key_value_store
+   cd Distributed_Key_Value_Store
+   docker image build -t distributed_key_value_store .
    ```
 3. Start the docker container in exec mode
     ```sh
