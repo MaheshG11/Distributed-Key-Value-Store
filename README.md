@@ -126,12 +126,13 @@ This is an example of how to list things you need to use the software and how to
 5. Create a build directory and build the project
     ```sh
     mkdir -p build && cd build
-    cmake ..
-    make 
+    cmake .. -DCMAKE_BUILD_TYPE=Debug
+    cmake --build .
     ```
 6) Try to start the application with
    ```sh
-   ./distributed_kv_store
+   ./distributed_kv_store 300 600 50 3 null /tmp
+   ./distributed_kv_store 300 600 50 3 172.17.0.2:5556 /tmp
    ```
    This will prompt you with how to start and run the application 
 

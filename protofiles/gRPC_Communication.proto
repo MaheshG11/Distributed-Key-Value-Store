@@ -21,11 +21,19 @@ service raft{
 
   rpc heart_beat(heart_request) returns (beats_response);
   rpc vote_rpc(vote_request) returns(vote_response);
-  rpc new_master(master_change_request) returns (master_change_response);
+  rpc new_leader(leader_change_request) returns (leader_change_response);
   rpc update_cluster_member(member_request) returns (member_response);
+  rpc share_cluster_info(cluster_info) returns (commit_response);
   
 }
 
+// message common_response{
+//   bool success=1;
+//   int32 term=2;
+//   string leader_ip_port=3;
+
+//   string value=4;
+// }
 message log_request{
   int64 entry_id=1;
   int32 term=2;
@@ -36,7 +44,7 @@ message log_request{
 message log_response{
   bool success=1;
   int32 term=2;
-  string master_ip_port=3;
+  string leader_ip_port=3;
 
   string value=4;
   
@@ -44,36 +52,37 @@ message log_response{
 
 message commit_request{
   int64 entry_id=1;
-  bool commit=2; // 0: commit this entry, 1 discard this entry
+  bool commit=2; // 1: commit this entry, 0 discard this entry
   int32 term=3;
 }
 message commit_response{
-  bool success=1 ;// 0 : discarded
+  bool success=1 ; // 0 : discarded
 }
 
 message heart_request{
   int32 term=1;
 }
 message beats_response{
-  bool is_master=1;
+  bool is_leader=1;
   int32 term=2;
-  string master_ip_port=3;
+  string leader_ip_port=3;
 }
 
 message vote_request{
   int32 term = 1;
   string ip_port = 2;
+  int64 last_commit_index=3;
 }
 message vote_response{
-  bool vote=1;
+  bool success=1;
   int32 term=2;
 }
 
-message master_change_request{
+message leader_change_request{
   int32 term=1;
   string ip_port=2;
 }
-message master_change_response{
+message leader_change_response{
   bool success=1;
   int32 term=2;
 }
@@ -82,7 +91,18 @@ message member_request{
   bool to_drop=1;
   string ip_port=2;
   string cluster_key=3;
+  bool broadcast=4;
 }
 message member_response{
   bool success=1;
+    int32 term=2;
+  string leader_ip_port=3;
+
+}
+
+message cluster_info{
+  string cluster_key=1;
+  repeated string ip_port=2; 
+  string leader_ip_port=3;
+  int32 term=4;
 }
