@@ -29,13 +29,6 @@ class ClusterManager {
   bool AddNode(const std::string& ip_port);
 
   /**
-  * @brief drop Node to cluster 
-  * @param ip_port address of the node to drop from the cluster 
-  * @returns true on success
-  */
-  bool DropNode(const std::string& ip_port);
-
-  /**
    * @brief get count of nodes in the cluster
    * @returns number of nodes in the cluster 
    */
@@ -59,7 +52,7 @@ class ClusterManager {
    * @brief get leader details
    * @returns ip_port and its current term
    */
-  std::unique_ptr<raft::Stub>& GetLeaderStub();
+  std::unique_ptr<Raft::Stub>& GetLeaderStub();
 
   /**
    * @brief get leader details
@@ -84,7 +77,7 @@ class ClusterManager {
 
  private:
   std::map<std::string, STUB> cluster_map_;
-  std::unique_ptr<raft::Stub> leader_stub_;
+  std::unique_ptr<Raft::Stub> leader_stub_;
   std::mutex leader_stub_mtx_;
   std::string leader_ip_port_ = "", cluster_key_;
   std::shared_ptr<RaftParameters> raft_parameters_;

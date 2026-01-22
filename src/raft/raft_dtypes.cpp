@@ -5,9 +5,9 @@
 
 using namespace std;
 STUB::STUB(const string& ip_port) {
-  s1 = key_value_store_rpc::NewStub(
+  s1 = KeyValueStoreRPC::NewStub(
       grpc::CreateChannel(ip_port, grpc::InsecureChannelCredentials()));
-  s2 = raft::NewStub(
+  s2 = Raft::NewStub(
       grpc::CreateChannel(ip_port, grpc::InsecureChannelCredentials()));
 }
 

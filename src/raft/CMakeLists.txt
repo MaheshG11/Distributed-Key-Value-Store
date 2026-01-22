@@ -94,7 +94,44 @@ target_compile_definitions(RAFT_FEATURES
     SPDLOG_ENABLE_SOURCE_LOC
 )
 
+# RAFT_SUPPORT
+add_library(LOG_QUEUE OBJECT
+${CMAKE_CURRENT_SOURCE_DIR}/queue/loq_queue.cpp
 
+)
+
+target_include_directories(LOG_QUEUE 
+    PUBLIC 
+        ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/protofiles
+        # ${PROJECT_SOURCE_DIR}/src/raft
+        # ${CMAKE_CURRENT_SOURCE_DIR}/cluster
+        # ${CMAKE_CURRENT_SOURCE_DIR}/
+        ${CMAKE_CURRENT_SOURCE_DIR}/queue
+
+        # ${CMAKE_CURRENT_SOURCE_DIR}/election
+        # ${CMAKE_CURRENT_SOURCE_DIR}/heartbeat
+        # ${CMAKE_CURRENT_SOURCE_DIR}/network
+    # ${CMAKE_CURRENT_SOURCE_DIR}/state
+
+
+)
+
+target_link_libraries(LOG_QUEUE 
+    PUBLIC
+        # store 
+        gRPC_Communication_Lib 
+        gRPC::grpc++
+)
+target_compile_definitions(LOG_QUEUE
+    PRIVATE 
+    SPDLOG_ENABLE_SOURCE_LOC
+    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
+
+)
+
+
+#RAFT
 add_library(RAFT STATIC
     # ${CMAKE_CURRENT_SOURCE_DIR}/log_store.h
     ${CMAKE_CURRENT_SOURCE_DIR}/raft_manager.cpp

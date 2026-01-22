@@ -8,31 +8,30 @@
 #include "raft_state.h"
 #include "rpc_calls.h"
 // bool TRUE = true, FALSE = false;
-class RaftServer : public raft::Service {
+class RaftServer : public Raft::Service {
 
  public:
   RaftServer(std::shared_ptr<RaftManager> raft_manager);
-  grpc::Status send_log_entry(grpc::ServerContext* context,
-                              const log_request* request,
-                              log_response* response) override;
-  grpc::Status commit_log_entry(grpc::ServerContext* context,
-                                const commit_request* request,
-                                commit_response* response) override;
-  grpc::Status heart_beat(grpc::ServerContext* context,
-                          const heart_request* request,
-                          beats_response* response) override;
-  grpc::Status vote_rpc(grpc::ServerContext* context,
-                        const vote_request* request,
-                        vote_response* response) override;
-  grpc::Status new_leader(grpc::ServerContext* context,
-                          const leader_change_request* request,
-                          leader_change_response* response) override;
-  grpc::Status update_cluster_member(grpc::ServerContext* context,
-                                     const member_request* request,
-                                     member_response* response) override;
-  grpc::Status share_cluster_info(grpc::ServerContext* context,
-                                  const ::cluster_info* request,
-                                  commit_response* response) override;
+  grpc::Status SendLogEntry(grpc::ServerContext* context,
+                            const LogRequest* request,
+                            LogResponse* response) override;
+  grpc::Status CommitLogEntry(grpc::ServerContext* context,
+                              const CommitRequest* request,
+                              CommitResponse* response) override;
+  grpc::Status Heartbeat(grpc::ServerContext* context,
+                         const HeartRequest* request,
+                         BeatsResponse* response) override;
+  grpc::Status VoteRPC(grpc::ServerContext* context, const VoteRequest* request,
+                       VoteResponse* response) override;
+  grpc::Status NewLeader(grpc::ServerContext* context,
+                         const LeaderChangeRequest* request,
+                         LeaderChangeResponse* response) override;
+  grpc::Status UpdateClusterMember(grpc::ServerContext* context,
+                                   const MemberRequest* request,
+                                   MemberResponse* response) override;
+  grpc::Status ShareClusterInfo(grpc::ServerContext* context,
+                                const ::ClusterInfo* request,
+                                CommitResponse* response) override;
 
  private:
   std::shared_ptr<RaftParameters> raft_parameters_;

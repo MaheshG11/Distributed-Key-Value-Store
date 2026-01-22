@@ -30,14 +30,14 @@ RPCCalls::RPCCalls(shared_ptr<RaftParameters> raft_parameters,
  * @param success set value true if quorum agrees
  * @param success_fut future for success
 */
-void RPCCalls::BroadcastLogEntry(::log_request& entry, promise<bool> success,
+void RPCCalls::BroadcastLogEntry(::LogRequest& entry, promise<bool> success,
                                  future<bool>& success_fut) {
   spdlog::info("RPCCalls::BroadcastLogEntry: Enter");
 
   int32_t sz = cluster_manager_->GetNodesCnt();
   entry.set_term(raft_state_->GetTerm());
   grpc::ClientContext context;
-  std::vector<::log_response> response(sz);
+  std::vector<LogResponse> response(sz);
   std::vector<grpc::Status> status(sz);
   std::vector<std::future<void>> futures(sz);
   std::mutex success_mtx;
@@ -55,9 +55,9 @@ void RPCCalls::BroadcastLogEntry(::log_request& entry, promise<bool> success,
         [&](atomic<int32_t>& votes, STUB& stub) {
           // retry starts here
           bool res = Retry(
-              [&](grpc::ClientContext* ctx, const log_request req,
-                  log_response* res) {
-                auto status = stub.s2->send_log_entry(ctx, req, res);
+              [&](grpc::ClientContext* ctx, const LogRequest req,
+                  LogResponse* res) {
+                auto status = stub.s2->SendLogEntry(ctx, req, res);
                 return status;
               },
               raft_parameters_->heartbeat_timeout, status[idx_copy],
@@ -94,12 +94,12 @@ void RPCCalls::BroadcastCommit(int64_t entry_id, bool commit,
   spdlog::info("RPCCalls::BroadcastCommit: Enter");
 
   int32_t sz = cluster_manager_->GetNodesCnt() - 1;
-  ::commit_request request;
+  ::CommitRequest request;
   request.set_entry_id(entry_id);
   request.set_commit(commit);
   request.set_term(raft_state_->GetTerm());
   grpc::ClientContext context;
-  std::vector<commit_response> response(sz);
+  std::vector<CommitResponse> response(sz);
   std::vector<grpc::Status> status(sz);
   std::vector<std::future<void>> futures(sz);
   std::mutex success_mtx;
@@ -117,9 +117,9 @@ void RPCCalls::BroadcastCommit(int64_t entry_id, bool commit,
         [&, idx_copy](atomic<int32_t>& votes, STUB& stub) {
           // retry starts here
           bool res = Retry(
-              [&](grpc::ClientContext* ctx, const commit_request req,
-                  commit_response* res) {
-                auto status = stub.s2->commit_log_entry(ctx, req, res);
+              [&](grpc::ClientContext* ctx, const CommitRequest req,
+                  CommitResponse* res) {
+                auto status = stub.s2->CommitLogEntry(ctx, req, res);
                 return status;
               },
               raft_parameters_->heartbeat_timeout, status[idx_copy],
@@ -147,15 +147,16 @@ void RPCCalls::BroadcastCommit(int64_t entry_id, bool commit,
  * @brief forward log entry to master
  * @param entry the entry to forward to master
 */
-bool RPCCalls::ForwardLogEntry(::log_request entry) {
+bool RPCCalls::ForwardLogEntry(::LogRequest entry) {
   spdlog::info("RPCCalls::ForwardLogEntry: Enter");
 
   grpc::ClientContext context;
-  ::log_response response;
-  {
+  ::LogResponse response;
+  if (raft_state_->GetLeaderAvailable()) {
     lock_guard<mutex> lock1(cluster_manager_->GetLeaderMutex());
-    cluster_manager_->GetLeaderStub()->send_log_entry(&context, entry,
-                                                      &response);
+    cluster_manager_->GetLeaderStub()->SendLogEntry(&context, entry, &response);
+  } else {
+    return false;
   }
   return response.success();
 }
@@ -166,10 +167,10 @@ bool RPCCalls::ForwardLogEntry(::log_request entry) {
 void RPCCalls::BroadcastNewLeader() {
   spdlog::info("RPCCalls::BroadcastNewLeader: Enter");
 
-  ::leader_change_request request;
+  LeaderChangeRequest request;
   request.set_ip_port(raft_parameters_->this_ip_port);
   request.set_term(raft_state_->GetTerm());
-  ::leader_change_response response;
+  LeaderChangeResponse response;
   std::vector<std::future<void>> futures(cluster_manager_->GetNodesCnt() - 1);
   grpc::Status status;
   int cnt = 0, idx = 0;
@@ -183,9 +184,9 @@ void RPCCalls::BroadcastNewLeader() {
         std::launch::async,
         [&, idx_copy](STUB& stub) {
           Retry(
-              [&](grpc::ClientContext* ctx, const leader_change_request req,
-                  leader_change_response* res) {
-                return stub.s2->new_leader(ctx, req, res);
+              [&](grpc::ClientContext* ctx, const LeaderChangeRequest req,
+                  LeaderChangeResponse* res) {
+                return stub.s2->NewLeader(ctx, req, res);
               },
               raft_parameters_->heartbeat_timeout, (status), request,
               &(response));
@@ -200,12 +201,12 @@ void RPCCalls::BroadcastNewLeader() {
 /**
  * @brief broadcast if a member down or has joined the cluster
 */
-bool RPCCalls::BroadcastMemberUpdate(::member_request request) {
+bool RPCCalls::BroadcastMemberUpdate(MemberRequest request) {
   spdlog::info("RPCCalls::BroadcastMemberUpdate: Enter");
 
   int32_t sz = cluster_manager_->GetNodesCnt() - 1;
   grpc::ClientContext context;
-  std::vector<::member_response> response(sz);
+  std::vector<MemberResponse> response(sz);
   std::vector<grpc::Status> status(sz);
   std::vector<std::future<void>> futures(sz);
 
@@ -220,9 +221,9 @@ bool RPCCalls::BroadcastMemberUpdate(::member_request request) {
         std::launch::async,
         [&, idx_copy](STUB& stub) {
           Retry(
-              [&](grpc::ClientContext* ctx, const member_request req,
-                  member_response* res) {
-                auto stat = stub.s2->update_cluster_member(ctx, req, res);
+              [&](grpc::ClientContext* ctx, const MemberRequest req,
+                  MemberResponse* res) {
+                auto stat = stub.s2->UpdateClusterMember(ctx, req, res);
                 if (stat.error_code() == grpc::StatusCode::OK && res->success())
                   cnt++;
                 return stat;
@@ -254,10 +255,10 @@ bool RPCCalls::BroadcastMemberUpdate(::member_request request) {
 /**
  * @brief send heartbeat to the leader
 */
-beats_response RPCCalls::SendHeartbeat(heart_request& request) {
+BeatsResponse RPCCalls::SendHeartbeat(HeartRequest& request) {
   spdlog::info("RPCCalls::SendHeartbeat: Enter");
 
-  ::beats_response response;
+  BeatsResponse response;
   response.set_is_leader(false);
   request.set_term(raft_state_->GetState());
   response.set_term(-1);
@@ -265,12 +266,12 @@ beats_response RPCCalls::SendHeartbeat(heart_request& request) {
   grpc::Status status;
   std::unique_lock<std::mutex> leader_info_lock(
       cluster_manager_->GetLeaderMutex());
-  std::unique_ptr<raft::Stub>& leader_stub = cluster_manager_->GetLeaderStub();
+  std::unique_ptr<Raft::Stub>& leader_stub = cluster_manager_->GetLeaderStub();
   if (leader_stub != nullptr) {
     Retry(
-        [&](grpc::ClientContext* ctx, const heart_request req,
-            beats_response* res) {
-          return leader_stub->heart_beat(ctx, req, res);
+        [&](grpc::ClientContext* ctx, const HeartRequest req,
+            BeatsResponse* res) {
+          return leader_stub->Heartbeat(ctx, req, res);
         },
         raft_parameters_->heartbeat_timeout, status, request, &response);
   }
@@ -281,8 +282,8 @@ bool RPCCalls::ShareClusterInfo(std::string ip_port, std::string cluster_key_) {
   spdlog::info("RPCCalls::ShareClusterInfo: Enter");
 
   int32_t sz = cluster_manager_->GetNodesCnt();
-  ::cluster_info request;
-  ::commit_response response;
+  ClusterInfo request;
+  CommitResponse response;
   request.set_cluster_key(cluster_key_);
   grpc::ClientContext context;
   request.set_leader_ip_port((cluster_manager_->GetLeader()).first);
@@ -298,7 +299,7 @@ bool RPCCalls::ShareClusterInfo(std::string ip_port, std::string cluster_key_) {
   if (it == cluster_manager_->end()) {
     return false;
   }
-  auto res = (it->second).s2->share_cluster_info(&context, request, &response);
+  auto res = (it->second).s2->ShareClusterInfo(&context, request, &response);
   spdlog::warn("RPCCalls::ShareClusterInfo response:{} ", res.error_code());
 
   if (res.error_code() == grpc::StatusCode::OK) {
@@ -316,8 +317,8 @@ void RPCCalls::CollectVotes(promise<bool> won, future<bool>& won_fut) {
   std::vector<std::future<void>> futures(sz);
   std::vector<grpc::Status> status(sz);
 
-  std::vector<::vote_response> response(sz);
-  ::vote_request request;
+  std::vector<VoteResponse> response(sz);
+  VoteRequest request;
   request.set_ip_port(raft_parameters_->this_ip_port);
   request.set_term(raft_state_->GetTerm() + 1);
   mutex won_mtx;
@@ -334,9 +335,9 @@ void RPCCalls::CollectVotes(promise<bool> won, future<bool>& won_fut) {
         [&, idx_copy](atomic<int32_t>& votes, STUB& stub) {
           // retry starts here
           bool res = Retry(
-              [&](grpc::ClientContext* ctx, const vote_request req,
-                  vote_response* res) {
-                auto status = stub.s2->vote_rpc(ctx, req, res);
+              [&](grpc::ClientContext* ctx, const VoteRequest req,
+                  VoteResponse* res) {
+                auto status = stub.s2->VoteRPC(ctx, req, res);
                 return status;
               },
               raft_parameters_->heartbeat_timeout, status[idx_copy], won_mtx,
@@ -437,21 +438,19 @@ bool RPCCalls::Retry(Func&& func, std::chrono::milliseconds& timeout,
   return false;
 }
 
-bool RPCCalls::SendMemberRequest(std::string ip_port, bool broadcast,
-                                 bool to_drop) {
+bool RPCCalls::SendMemberRequest(std::string ip_port, bool broadcast) {
   spdlog::info("RPCCalls::SendMemberRequest: Enter");
 
-  auto stub = raft::NewStub(
+  auto stub = Raft::NewStub(
       grpc::CreateChannel(ip_port, grpc::InsecureChannelCredentials()));
   grpc::ClientContext context;
-  member_response response;
-  member_request request;
+  MemberResponse response;
+  MemberRequest request;
   request.set_ip_port(raft_parameters_->this_ip_port);
   request.set_cluster_key(raft_parameters_->cluster_key);
-  request.set_to_drop(to_drop);
   request.set_broadcast(broadcast);
 
-  auto status = stub->update_cluster_member(&context, request, &response);
+  auto status = stub->UpdateClusterMember(&context, request, &response);
   if (status.error_code() == StatusCode::OK && response.success()) {
     return true;
   }

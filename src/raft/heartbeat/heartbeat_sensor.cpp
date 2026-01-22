@@ -43,9 +43,9 @@ void HeartbeatSensor::Stop() {
 void HeartbeatSensor::start() {
   spdlog::info("HeartbeatSensor::start: Enter");
 
-  heart_request request;
+  HeartRequest request;
   request.set_term(raft_state_->GetTerm());
-  beats_response response;
+  BeatsResponse response;
   sense_ = true;
   while (sense_.load()) {
     spdlog::info("HeartbeatSensor::sending heatbeart");
@@ -71,6 +71,7 @@ void HeartbeatSensor::start() {
         spdlog::info(" heatbeart error {}", e.what());
       }
     }
+    raft_state_->SetLeaderAvailable(false);
     std::this_thread::sleep_for(raft_parameters_->election_timeout);
     if ((callback_->IsVoter()))
       continue;

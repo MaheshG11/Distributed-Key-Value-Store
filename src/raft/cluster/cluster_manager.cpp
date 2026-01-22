@@ -39,21 +39,6 @@ bool ClusterManager::AddNode(const string& ip_port) {
 }
 
 /**
-  * @brief drop Node to cluster 
-  * @param ip_port address of the node to drop from the cluster 
-  * @returns true on success
-  */
-bool ClusterManager::DropNode(const string& ip_port) {
-
-  auto res = cluster_map_.erase(ip_port);
-  spdlog::info("ClusterManager::DropNode {}", cluster_map_.size());
-
-  if (res >= 0)
-    return true;
-  return false;
-}
-
-/**
    * @brief get count of nodes in the cluster
    * @returns number of nodes in the cluster 
    */
@@ -70,17 +55,17 @@ int32_t ClusterManager::GetNodesCnt() {
  */
 bool ClusterManager::UpdateLeader(const string& ip_port, int32_t term) {
   spdlog::info("ClusterManager::UpdateLeader: Enter {} | {}", ip_port, term);
-
   if (raft_state_->GetTerm() < term) {
 
     lock_guard<mutex> lock1(leader_stub_mtx_);
     leader_ip_port_ = ip_port;
     try {
-      leader_stub_ = raft::NewStub(
+      leader_stub_ = Raft::NewStub(
           grpc::CreateChannel(ip_port, grpc::InsecureChannelCredentials()));
     } catch (const exception& e) {
       leader_stub_ = nullptr;
     }
+    raft_state_->SetLeaderAvailable(true);
     if (ip_port == raft_parameters_->this_ip_port) {
       raft_state_->SetState(LEADER);
     } else {
@@ -109,7 +94,7 @@ pair<string, int32_t> ClusterManager::GetLeader() {
    * @brief get leader details
    * @returns ip_port and its current term
    */
-std::unique_ptr<raft::Stub>& ClusterManager::GetLeaderStub() {
+std::unique_ptr<Raft::Stub>& ClusterManager::GetLeaderStub() {
   spdlog::info("ClusterManager::GetLeaderStub: Enter");
 
   return leader_stub_;

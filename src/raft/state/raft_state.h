@@ -61,9 +61,25 @@ class RaftState {
     commit_index_ = commit_index;
   }
 
+  /**
+   *  @brief Sets leader available variable
+   */
+  inline void SetLeaderAvailable(bool is_leader_available) {
+    spdlog::info("RaftState::SetLeaderAvailable: Enter");
+    is_leader_available_.store(is_leader_available);
+  }
+
+  /**
+   *  @brief Get leader available variable
+   */
+  inline bool GetLeaderAvailable() {
+    spdlog::info("RaftState::SetLeaderAvailable: Enter");
+    return is_leader_available_.load();
+  }
+
  private:
   std::atomic<int32_t> term_;
-
+  std::atomic<bool> is_leader_available_;
   std::atomic<int64_t> commit_index_;
 
   std::atomic<STATE> state_;

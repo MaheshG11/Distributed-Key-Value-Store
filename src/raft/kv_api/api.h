@@ -7,19 +7,14 @@
 #include <string>
 // #include "log_store_impl.cpp"
 
-class Api_impl : public key_value_store_rpc ::Service {
+class Api_impl : public KeyValueStoreRPC::Service {
 
  public:
   Api_impl();
-  ::grpc::Status get_rpc(::grpc::ServerContext* context,
-                         const ::store_request* request,
-                         ::store_response* response);
-  ::grpc::Status delete_rpc(::grpc::ServerContext* context,
-                            const ::store_request* request,
-                            ::store_response* response);
-  ::grpc::Status put_rpc(::grpc::ServerContext* context,
-                         const ::store_request* request,
-                         ::store_response* response);
+  grpc::Status WriteRPC(grpc::ServerContext* context,
+                        const StoreRequest* request, StoreResponse* response);
+  grpc::Status GetRPC(grpc::ServerContext* context, const StoreRequest* request,
+                      StoreResponse* response);
 
  private:
   //   Store& store;

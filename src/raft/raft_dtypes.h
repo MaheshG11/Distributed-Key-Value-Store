@@ -5,8 +5,8 @@
 #include "gRPC_Communication.pb.h"
 
 struct STUB {
-  std::unique_ptr<key_value_store_rpc::Stub> s1;
-  std::unique_ptr<raft::Stub> s2;
+  std::unique_ptr<KeyValueStoreRPC::Stub> s1;
+  std::unique_ptr<Raft::Stub> s2;
   STUB(const std::string& ip_port);
 };
 
@@ -22,4 +22,10 @@ struct RaftParameters {
   std::string cluster_key;
 
   void Print();
+};
+
+struct NodeState {
+  std::string ip_port;
+  int64_t matchIndex;
+  int64_t nextIndex;
 };

@@ -9,7 +9,7 @@
 
 class Client {
  private:
-  std::unique_ptr<key_value_store_rpc::Stub> stub_;
+  std::unique_ptr<KeyValueStoreRPC::Stub> stub_;
 
  public:
   Client(std::string& ip_port);

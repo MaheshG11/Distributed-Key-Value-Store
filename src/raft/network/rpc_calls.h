@@ -33,7 +33,7 @@ class RPCCalls {
      * @param success set value true if quorum agrees
      * @param success_fut future for success
      */
-  void BroadcastLogEntry(::log_request& entry, std::promise<bool> success,
+  void BroadcastLogEntry(::LogRequest& entry, std::promise<bool> success,
                          std::future<bool>& success_fut);
 
   /**
@@ -51,7 +51,7 @@ class RPCCalls {
      * @brief forward log entry to master
      * @param entry the entry to forward to master
      */
-  bool ForwardLogEntry(::log_request entry);
+  bool ForwardLogEntry(::LogRequest entry);
 
   /**
    * @brief broadcast new leader to all the other nodes
@@ -61,12 +61,12 @@ class RPCCalls {
   /**
    * @brief broadcast if a member down or has joined the cluster
    */
-  bool BroadcastMemberUpdate(::member_request request);
+  bool BroadcastMemberUpdate(::MemberRequest request);
 
   /**
    * @brief send heartbeat to the leader
    */
-  beats_response SendHeartbeat(heart_request& request);
+  BeatsResponse SendHeartbeat(HeartRequest& request);
 
   /**
    * @brief Share cluster info to the node with
@@ -99,7 +99,7 @@ class RPCCalls {
              std::atomic<int32_t>& votes, std::atomic<bool>& got_res,
              Response* response, Request& request);
 
-  bool SendMemberRequest(std::string ip_port, bool broadcast, bool to_drop);
+  bool SendMemberRequest(std::string ip_port, bool broadcast);
 
  private:
   std::shared_ptr<RaftParameters> raft_parameters_;

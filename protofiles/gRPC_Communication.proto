@@ -1,29 +1,50 @@
 syntax = "proto3";
 
-service key_value_store_rpc{
-  rpc get_rpc(store_request) returns (store_response);
-  rpc delete_rpc(store_request) returns (store_response);
-  rpc put_rpc(store_request) returns (store_response);
+//Clien Requests
+service KeyValueStoreRPC{
+
+  // Get Request From Client
+  rpc GetRPC(StoreRequest) returns (StoreResponse);
+  
+  // Delete Request From Client
+  rpc WriteRPC(StoreRequest) returns (StoreResponse);
 }
-message store_response{
+message StoreResponse{
   bool ok=1;
   string key=2;
   string value=3;
 }
-message store_request{
-  string key=1;
-  string value=2;
+message StoreRequest{
+  int32 operation=1; // 1: Add | 0:drop
+  string key=2;
+  string value=3;
+  int64 id=4;
+
 }
 
-service raft{
-  rpc send_log_entry(log_request) returns (log_response);
-  rpc commit_log_entry(commit_request) returns (commit_response);
+//Raft Inter node RPCs
+service Raft{
 
-  rpc heart_beat(heart_request) returns (beats_response);
-  rpc vote_rpc(vote_request) returns(vote_response);
-  rpc new_leader(leader_change_request) returns (leader_change_response);
-  rpc update_cluster_member(member_request) returns (member_response);
-  rpc share_cluster_info(cluster_info) returns (commit_response);
+  //
+  rpc SendLogEntry(LogRequest) returns (LogResponse);
+  
+  //
+  rpc CommitLogEntry(CommitRequest) returns (CommitResponse);
+
+  //
+  rpc Heartbeat(HeartRequest) returns (BeatsResponse);
+  
+  //
+  rpc VoteRPC(VoteRequest) returns(VoteResponse);
+  
+  //
+  rpc NewLeader(LeaderChangeRequest) returns (LeaderChangeResponse);
+  
+  //
+  rpc UpdateClusterMember(MemberRequest) returns (MemberResponse);
+  
+  //
+  rpc ShareClusterInfo(ClusterInfo) returns (CommitResponse);
   
 }
 
@@ -34,14 +55,12 @@ service raft{
 
 //   string value=4;
 // }
-message log_request{
-  int64 entry_id=1;
+message LogRequest{
+  repeated StoreRequest entries=1;
   int32 term=2;
   int32 request_type=3; // 0:put, 1 delete
-  string key=4;
-  string value=5;
 }
-message log_response{
+message LogResponse{
   bool success=1;
   int32 term=2;
   string leader_ip_port=3;
@@ -50,57 +69,56 @@ message log_response{
   
 }
 
-message commit_request{
+message CommitRequest{
   int64 entry_id=1;
   bool commit=2; // 1: commit this entry, 0 discard this entry
   int32 term=3;
 }
-message commit_response{
+message CommitResponse{
   bool success=1 ; // 0 : discarded
 }
 
-message heart_request{
+message HeartRequest{
   int32 term=1;
 }
-message beats_response{
+message BeatsResponse{
   bool is_leader=1;
   int32 term=2;
   string leader_ip_port=3;
 }
 
-message vote_request{
+message VoteRequest{
   int32 term = 1;
   string ip_port = 2;
   int64 last_commit_index=3;
 }
-message vote_response{
+message VoteResponse{
   bool success=1;
   int32 term=2;
 }
 
-message leader_change_request{
+message LeaderChangeRequest{
   int32 term=1;
   string ip_port=2;
 }
-message leader_change_response{
+message LeaderChangeResponse{
   bool success=1;
   int32 term=2;
 }
 
-message member_request{
-  bool to_drop=1;
+message MemberRequest{
+  bool broadcast=1;
   string ip_port=2;
   string cluster_key=3;
-  bool broadcast=4;
 }
-message member_response{
+message MemberResponse{
   bool success=1;
     int32 term=2;
   string leader_ip_port=3;
 
 }
 
-message cluster_info{
+message ClusterInfo{
   string cluster_key=1;
   repeated string ip_port=2; 
   string leader_ip_port=3;

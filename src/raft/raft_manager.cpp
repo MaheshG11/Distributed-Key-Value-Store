@@ -20,6 +20,7 @@ RaftManager::RaftManager(shared_ptr<RaftParameters> raft_parameters) {
   raft_state_->SetCommitIndex(-1);
   raft_state_->SetState(FOLLOWER);
   raft_state_->SetTerm(-1);
+  raft_state_->SetLeaderAvailable(false);
 
   cluster_manager_ = make_shared<ClusterManager>(raft_parameters_, raft_state_);
   cluster_manager_->AddNode(raft_parameters_->this_ip_port);
@@ -82,7 +83,7 @@ void RaftManager::StartServer(std::string master_ip_port) {
   }
 
   if (master_ip_port != "null") {
-    auto status = (rpc_calls_->SendMemberRequest(master_ip_port, true, false));
+    auto status = (rpc_calls_->SendMemberRequest(master_ip_port, true));
   }
   heartbeat_sensor_ = make_shared<HeartbeatSensor>(this);
   heartbeat_sensor_->Start();
