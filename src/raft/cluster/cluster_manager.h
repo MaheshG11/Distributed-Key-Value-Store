@@ -1,5 +1,7 @@
 #pragma once
 #include <memory>
+#include "api.h"
+#include "log_queue.h"
 #include "raft_dtypes.h"
 #include "raft_state.h"
 /**
@@ -63,23 +65,26 @@ class ClusterManager {
   /*
     custom iterator
   */
-  using iterator = std::map<std::string, STUB>::iterator;
-  using const_iterator = std::map<std::string, STUB>::const_iterator;
+  using iterator = std::map<std::string, NodeState>::iterator;
+  using const_iterator = std::map<std::string, NodeState>::const_iterator;
   inline iterator begin() { return cluster_map_.begin(); }
   inline iterator end() { return cluster_map_.end(); }
 
   inline const_iterator begin() const { return cluster_map_.begin(); }
   inline const_iterator end() const { return cluster_map_.end(); }
 
-  inline iterator Find(std::string& ip_port) {
+  inline iterator Find(const std::string& ip_port) {
     return cluster_map_.find(ip_port);
   }
 
+  inline size_t Size() { return cluster_map_.size(); };
+
  private:
-  std::map<std::string, STUB> cluster_map_;
+  std::map<std::string, NodeState> cluster_map_;
   std::unique_ptr<Raft::Stub> leader_stub_;
   std::mutex leader_stub_mtx_;
   std::string leader_ip_port_ = "", cluster_key_;
   std::shared_ptr<RaftParameters> raft_parameters_;
   std::shared_ptr<RaftState> raft_state_;
+  std::shared_ptr<RaftQueue> log_queue_;
 };

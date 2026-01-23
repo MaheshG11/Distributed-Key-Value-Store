@@ -25,7 +25,13 @@ class RaftQueue {
   * @brief add entry to the queue 
   * @param entry
   */
-  bool AppendEntry(StoreRequest& entry);
+  bool AppendEntry(const StoreRequest& entry);
+
+  /**
+  * @brief add all entries in request 
+  * @param request
+  */
+  bool AppendEntries(const LogRequest& request);
 
   /**
   * @brief drop entries from entry id to the end 
@@ -37,6 +43,11 @@ class RaftQueue {
    * @brief commit entry till the given entry id
    */
   bool CommitEntry(int64_t entry_id);
+
+  /**
+   * Returns most recent id 
+   */
+  int64_t GetMostRecentId();
 
  private:
   /**
@@ -62,6 +73,8 @@ class RaftQueue {
    * @brief Initializes append entries thread
    */
   void appendEntries();
+
+  void advanceIdx(std::pair<int, int>& idx);
 
  private:
   std::mutex log_entries_mtx_;

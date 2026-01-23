@@ -1,5 +1,5 @@
-#include <memory>
 #include "log_queue.h"
+#include <memory>
 using namespace std;
 
 /**
@@ -41,13 +41,50 @@ bool RaftQueue::GetEntries(int64_t entry_id, LogRequest& request) {
   * @brief add entry to the queue 
   * @param entry
   */
-bool RaftQueue::AppendEntry(StoreRequest& entry) {
+bool RaftQueue::AppendEntry(const StoreRequest& entry) {
   lock_guard<mutex> lock1(log_entries_mtx_);
   if (log_entries_[in_use_log_entries_].size() >= 1e6) {
     if (!clearLog())
       return false;
   }
   log_entries_[in_use_log_entries_].push_back(entry);
+  return true;
+}
+
+/**
+  * @brief add all entries in request 
+  * @param request
+  */
+bool RaftQueue::AppendEntries(const LogRequest& request) {
+  auto entries = request.entries();
+  int32_t id = GetMostRecentId(), req_id = entries.cbegin()->id();
+  if (id < entries.cbegin()->id()) {
+    for (auto entry : entries) {
+      AppendEntry(entry);
+    }
+    return true;
+  }
+  auto idx = find(req_id);
+  auto it = entries.cbegin();
+  if (idx.first == -1)
+    return false;
+  while (it != entries.cend()) {
+
+    if (it->id() != log_entries_[idx.first][idx.second].id()) {
+      DropEntries(log_entries_[idx.first][idx.second].id());
+      return false;
+    }
+    it++;
+    advanceIdx(idx);
+    if (idx.first >= 0)
+      continue;
+    break;
+  }
+
+  while (it != entries.cend()) {
+    AppendEntry((*it));
+    it++;
+  }
   return true;
 }
 
@@ -97,6 +134,19 @@ bool RaftQueue::CommitEntry(int64_t entry_id) {
     }
   }
   return true;
+}
+
+/**
+   * Returns most recent id 
+   */
+int64_t RaftQueue::GetMostRecentId() {
+  lock_guard<mutex> lock1(log_entries_mtx_);
+
+  if (in_use_log_entries_ >= 0 and in_use_log_entries_ <= 2) {
+    int32_t sz = log_entries_[in_use_log_entries_].size();
+    return log_entries_[in_use_log_entries_][sz - 1].id();
+  }
+  return -1;
 }
 
 /**
@@ -155,4 +205,18 @@ pair<int, int> RaftQueue::find(int64_t entry_id) {
     }
   }
   return {-1, -1};
+}
+
+void RaftQueue::advanceIdx(std::pair<int, int>& idx) {
+  if (idx.first + 1 < 1e6 and log_entries_[idx.second].size() < idx.first + 1) {
+    idx.first++;
+    return;
+
+  } else if (idx.second + 1 < 3 && log_entries_[idx.second + 1].size()) {
+    idx.first = 0;
+    idx.second++;
+    return;
+  }
+  idx.first = -1;
+  idx.second = -1;
 }

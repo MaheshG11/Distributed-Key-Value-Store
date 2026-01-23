@@ -37,6 +37,8 @@ class RaftManager : public RaftManagerCallback {
   std::shared_ptr<Election> election_;
 
   std::shared_ptr<HeartbeatSensor> heartbeat_sensor_;
+  std::shared_ptr<ApiImpl> api_impl_;
+
   //   std::shared_ptr<RaftParameters> raft_parameters_;
   //   std::shared_ptr<RaftState> raft_state_;
   //   std::shared_ptr<ClusterManager> cluster_manager_;

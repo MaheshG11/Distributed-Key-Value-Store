@@ -38,6 +38,8 @@ bool RaftManager::ChangeState(std::string ip_port, int32_t term_) {
   spdlog::info("RaftManager::ChangeState: Enter\n");
 
   cluster_manager_->UpdateLeader(ip_port, term_);
+  rpc_calls_->AppendLogEntries(api_impl_->commited_idx);
+
   return true;
 }
 bool RaftManager::StartElection() {
@@ -66,7 +68,7 @@ void RaftManager::StartServer(std::string master_ip_port) {
 
   shared_ptr<RaftManager> raft_manager_ptr(this);
   RaftServer raft_server(raft_manager_ptr);
-  Api_impl api;
+  ApiImpl api;
   spdlog::warn("ip port {}", master_ip_port);
   grpc::ServerBuilder builder;
   builder.AddListeningPort(raft_parameters_->this_ip_port,

@@ -66,6 +66,8 @@ void HeartbeatSensor::start() {
       try {
         cluster_manager_->UpdateLeader(response.leader_ip_port(),
                                        response.term());
+        rpc_calls_->AppendLogEntries(api_impl_->commited_idx);
+
         continue;
       } catch (const std::exception& e) {
         spdlog::info(" heatbeart error {}", e.what());

@@ -4,7 +4,7 @@
 #include "grpcpp/grpcpp.h"
 
 using namespace std;
-STUB::STUB(const string& ip_port) {
+NodeState::NodeState(const string& ip_port) {
   s1 = KeyValueStoreRPC::NewStub(
       grpc::CreateChannel(ip_port, grpc::InsecureChannelCredentials()));
   s2 = Raft::NewStub(

@@ -55,4 +55,5 @@ class HeartbeatSensor {
   std::atomic<bool> sense_;
   std::thread heartbeat_thread_;
   std::chrono::time_point<std::chrono::system_clock> last_contact_;
+  std::shared_ptr<ApiImpl> api_impl_;
 };

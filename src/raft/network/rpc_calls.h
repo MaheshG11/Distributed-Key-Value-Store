@@ -4,6 +4,7 @@
 #include "cluster_manager.h"
 #include "gRPC_Communication.grpc.pb.h"
 #include "gRPC_Communication.pb.h"
+#include "log_queue.h"
 #include "raft_dtypes.h"
 
 /**
@@ -27,31 +28,24 @@ class RPCCalls {
   RPCCalls(RPCCalls&& other) = default;
   RPCCalls& operator=(RPCCalls& other) = delete;
   RPCCalls& operator=(RPCCalls&& other) = default;
-  /**
-     * @brief broadcast log entry to all the other nodes
-     * @param entry entry to broadcast 
-     * @param success set value true if quorum agrees
-     * @param success_fut future for success
-     */
-  void BroadcastLogEntry(::LogRequest& entry, std::promise<bool> success,
-                         std::future<bool>& success_fut);
 
   /**
-   * @brief broadcast commit with entry id
-   * @param entry_id commit entry with this id
-   * @param commit if true commit the entry else drop it     
-   * @param success set value true if quorum agrees
-   * @param success_fut future for success
-   */
-  void BroadcastCommit(int64_t entry_id, bool commit,
-                       std::promise<bool> success,
-                       std::future<bool>& success_fut);
+     * @brief send append entries 
+     * @param commited_id id that is commited on majority of indexes
+     */
+  void AppendLogEntries(std::atomic<int64_t>& commited_id);
+
+  /**
+     * @brief send append entries 
+     * @param commited_id id that is commited on majority of indexes
+     */
+  void StopAppendentries();
 
   /**
      * @brief forward log entry to master
      * @param entry the entry to forward to master
      */
-  bool ForwardLogEntry(::LogRequest entry);
+  bool ForwardLogEntry(LogRequest entry);
 
   /**
    * @brief broadcast new leader to all the other nodes
@@ -102,7 +96,19 @@ class RPCCalls {
   bool SendMemberRequest(std::string ip_port, bool broadcast);
 
  private:
+  /**
+     * @brief broadcast log entry to all the other nodes
+     * @param entry entry to broadcast 
+     * @param success set value true if quorum agrees
+     * @param success_fut future for success
+     */
+  void appendLogEntries(std::atomic<int64_t>& commited_idx);
+
+ private:
   std::shared_ptr<RaftParameters> raft_parameters_;
   std::shared_ptr<RaftState> raft_state_;
   std::shared_ptr<ClusterManager> cluster_manager_;
+  std::shared_ptr<RaftQueue> log_queue_;
+  std::atomic<bool> is_append_entries_running;
+  std::thread append_entries_thread;
 };

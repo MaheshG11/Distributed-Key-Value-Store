@@ -18,6 +18,8 @@ void Election::Start(promise<bool> election_res) {
   promise<bool> won_prom;
   future<bool> won = won_prom.get_future();
   raft_state_->SetState(CANDIDATE);
+  rpc_calls_->StopAppendentries();
+
   auto fut = async(std::launch::async, [&]() {
     return rpc_calls_->CollectVotes(move(won_prom), won);
   });

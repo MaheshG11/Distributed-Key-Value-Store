@@ -4,6 +4,7 @@
 #include "gRPC_Communication.grpc.pb.h"
 #include "gRPC_Communication.pb.h"
 // #include "log_store.h"
+#include "log_queue.h"
 #include "raft_manager.h"
 #include "raft_state.h"
 #include "rpc_calls.h"
@@ -15,9 +16,6 @@ class RaftServer : public Raft::Service {
   grpc::Status SendLogEntry(grpc::ServerContext* context,
                             const LogRequest* request,
                             LogResponse* response) override;
-  grpc::Status CommitLogEntry(grpc::ServerContext* context,
-                              const CommitRequest* request,
-                              CommitResponse* response) override;
   grpc::Status Heartbeat(grpc::ServerContext* context,
                          const HeartRequest* request,
                          BeatsResponse* response) override;
@@ -41,6 +39,8 @@ class RaftServer : public Raft::Service {
   std::shared_ptr<RPCCalls> rpc_calls_;
   std::shared_ptr<ClusterManager> cluster_manager_;
   std::shared_ptr<Election> election_;
+  std::shared_ptr<RaftQueue> log_queue_;
+  std::shared_ptr<ApiImpl> api_impl_;
 
   // std::mutex& raft_manager_mutex;
 };

@@ -25,122 +25,24 @@ RPCCalls::RPCCalls(shared_ptr<RaftParameters> raft_parameters,
 }
 
 /**
- * @brief broadcast log entry to all the other nodes
- * @param entry entry to broadcast
- * @param success set value true if quorum agrees
- * @param success_fut future for success
-*/
-void RPCCalls::BroadcastLogEntry(::LogRequest& entry, promise<bool> success,
-                                 future<bool>& success_fut) {
-  spdlog::info("RPCCalls::BroadcastLogEntry: Enter");
-
-  int32_t sz = cluster_manager_->GetNodesCnt();
-  entry.set_term(raft_state_->GetTerm());
-  grpc::ClientContext context;
-  std::vector<LogResponse> response(sz);
-  std::vector<grpc::Status> status(sz);
-  std::vector<std::future<void>> futures(sz);
-  std::mutex success_mtx;
-  atomic<bool> got_res{false};
-  atomic<int32_t> votes{1};
-  int cnt = 0, idx = 0;
-  for (auto& [ip_port, stub] : (*cluster_manager_)) {
-    if (ip_port == raft_parameters_->this_ip_port)
-      continue;
-    int32_t idx_copy = idx++;
-    // async starts here
-
-    futures[idx_copy] = std::async(
-        std::launch::async,
-        [&](atomic<int32_t>& votes, STUB& stub) {
-          // retry starts here
-          bool res = Retry(
-              [&](grpc::ClientContext* ctx, const LogRequest req,
-                  LogResponse* res) {
-                auto status = stub.s2->SendLogEntry(ctx, req, res);
-                return status;
-              },
-              raft_parameters_->heartbeat_timeout, status[idx_copy],
-              success_mtx, success, success_fut, votes, got_res,
-              &response[idx_copy], entry);
-
-          // retry ends here
-          if (res)
-            return;
-        },
-        ref(votes), ref(stub));
-    //async ends here
-  }
-
-  for (auto& fut : futures)
-    fut.get();
-  if (success_fut.wait_for(std::chrono::seconds(0)) ==
-      std::future_status::ready) {
+     * @brief broadcast log entry to all the other nodes
+     * @param entry entry to broadcast 
+     * @param success set value true if quorum agrees
+     * @param success_fut future for success
+     */
+void RPCCalls::AppendLogEntries(atomic<int64_t>& commited_idx) {
+  if (is_append_entries_running || raft_state_->GetState() != LEADER) {
+    StopAppendentries();
     return;
   }
-  success.set_value(false);
+  std::thread new_thread = thread([&]() { appendLogEntries(commited_idx); });
+  swap(new_thread, append_entries_thread);
 }
 
-/**
- * @brief broadcast commit with entry id
- * @param entry_id commit entry with this id
- * @param commit if true commit the entry else drop it
- * @param success set value true if quorum agrees
- * @param success_fut future for success
-*/
-void RPCCalls::BroadcastCommit(int64_t entry_id, bool commit,
-                               promise<bool> success,
-                               future<bool>& success_fut) {
-  spdlog::info("RPCCalls::BroadcastCommit: Enter");
-
-  int32_t sz = cluster_manager_->GetNodesCnt() - 1;
-  ::CommitRequest request;
-  request.set_entry_id(entry_id);
-  request.set_commit(commit);
-  request.set_term(raft_state_->GetTerm());
-  grpc::ClientContext context;
-  std::vector<CommitResponse> response(sz);
-  std::vector<grpc::Status> status(sz);
-  std::vector<std::future<void>> futures(sz);
-  std::mutex success_mtx;
-  atomic<bool> got_res{false};
-  atomic<int32_t> votes{1};
-  int cnt = 0, idx = 0;
-  for (auto& [ip_port, stub] : (*cluster_manager_)) {
-    if (ip_port == raft_parameters_->this_ip_port)
-      continue;
-    int32_t idx_copy = idx++;
-    // async starts here
-
-    futures[idx_copy] = std::async(
-        std::launch::async,
-        [&, idx_copy](atomic<int32_t>& votes, STUB& stub) {
-          // retry starts here
-          bool res = Retry(
-              [&](grpc::ClientContext* ctx, const CommitRequest req,
-                  CommitResponse* res) {
-                auto status = stub.s2->CommitLogEntry(ctx, req, res);
-                return status;
-              },
-              raft_parameters_->heartbeat_timeout, status[idx_copy],
-              success_mtx, success, success_fut, votes, got_res,
-              &response[idx_copy], request);
-
-          // retry ends here
-          if (res)
-            return;
-        },
-        ref(votes), ref(stub));
-    //async ends here
-  }
-
-  for (auto& fut : futures)
-    fut.get();
-  if (success_fut.wait_for(std::chrono::seconds(0)) ==
-      std::future_status::ready) {
-    return;
-  }
-  success.set_value(false);
+void RPCCalls::StopAppendentries() {
+  is_append_entries_running = false;
+  if (append_entries_thread.joinable())
+    append_entries_thread.join();
 }
 
 /**
@@ -182,7 +84,7 @@ void RPCCalls::BroadcastNewLeader() {
     int32_t idx_copy = idx++;
     futures[idx_copy] = std::async(
         std::launch::async,
-        [&, idx_copy](STUB& stub) {
+        [&, idx_copy](NodeState& stub) {
           Retry(
               [&](grpc::ClientContext* ctx, const LeaderChangeRequest req,
                   LeaderChangeResponse* res) {
@@ -219,7 +121,7 @@ bool RPCCalls::BroadcastMemberUpdate(MemberRequest request) {
     int32_t idx_copy = idx++;
     futures[idx_copy] = std::async(
         std::launch::async,
-        [&, idx_copy](STUB& stub) {
+        [&, idx_copy](NodeState& stub) {
           Retry(
               [&](grpc::ClientContext* ctx, const MemberRequest req,
                   MemberResponse* res) {
@@ -332,7 +234,7 @@ void RPCCalls::CollectVotes(promise<bool> won, future<bool>& won_fut) {
     int32_t idx_copy = idx++;
     futures[idx_copy] = std::async(
         std::launch::async,
-        [&, idx_copy](atomic<int32_t>& votes, STUB& stub) {
+        [&, idx_copy](atomic<int32_t>& votes, NodeState& stub) {
           // retry starts here
           bool res = Retry(
               [&](grpc::ClientContext* ctx, const VoteRequest req,
@@ -455,4 +357,53 @@ bool RPCCalls::SendMemberRequest(std::string ip_port, bool broadcast) {
     return true;
   }
   return false;
+}
+
+/**
+     * @brief broadcast log entry to all the other nodes
+     * @param entry entry to broadcast 
+     * @param success set value true if quorum agrees
+     * @param success_fut future for success
+     */
+void RPCCalls::appendLogEntries(atomic<int64_t>& commited_idx) {
+  is_append_entries_running = true;
+  while (cluster_manager_->Size() < raft_parameters_->size) {
+    this_thread::sleep_for(chrono::milliseconds(500));
+  }
+  while (true) {
+    vector<int64_t> match_idxs;
+    auto it = cluster_manager_->begin();
+    LogRequest request;
+    ClientContext context;
+    request.set_term(raft_state_->GetTerm());
+    while (it != cluster_manager_->end()) {
+      auto deadline = chrono::system_clock::now() + chrono::milliseconds(500);
+      context.set_deadline(deadline);
+
+      log_queue_->GetEntries(it->second.nextIndex, request);
+      request.set_commit_idx(commited_idx);
+      LogResponse response;
+      auto entries = request.entries();
+      if (entries.size())
+        it->second.s2->SendLogEntry(&context, request, &response);
+      else
+        continue;
+      if (response.success()) {
+        if (entries.size()) {
+          auto match_idx = entries.cbegin()->id();
+          it->second.nextIndex = match_idx + 1;
+          it->second.matchIndex = match_idx;
+          match_idxs.push_back(match_idx);
+        }
+      } else {
+      }
+      it++;
+    }
+    sort(match_idxs.begin(), match_idxs.end());
+    int sz = match_idxs.size();
+    if (sz) {
+      commited_idx = match_idxs[(sz - 1) / 2];
+      commited_idx.notify_all();
+    }
+  }
 }

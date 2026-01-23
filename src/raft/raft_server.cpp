@@ -1,6 +1,7 @@
 #include "raft_server.h"
 #include <spdlog/spdlog.h>
 #include <memory>
+#include "cluster_manager.h"
 
 using namespace std;
 
@@ -19,35 +20,7 @@ grpc::Status RaftServer::SendLogEntry(grpc::ServerContext* context,
                                       LogResponse* response) {
   // log_store_ptr->append_entry(*request);
   spdlog::info("RaftServer::SendLogEntry: Enter");
-
-  response->set_success(true);
-  return grpc::Status::OK;
-}
-
-grpc::Status RaftServer::CommitLogEntry(grpc::ServerContext* context,
-                                        const CommitRequest* request,
-                                        CommitResponse* response) {
-  spdlog::info("RaftServer::CommitLogEntry: Enter");
-
-  // std::unique_lock<std::mutex> raft_manager_lock(raft_manager_mutex);
-  // if (raft_manager.get_term_id() > (request->term())) {
-  //   std::async(
-  //       std::launch::async,
-  //       [&](int32_t entry_id_, bool commit) {
-  //         log_store_ptr->commit(entry_id_, commit);
-  //       },
-  //       request->entry_id(), FALSE);
-  //   response->set_success(FALSE);
-  // } else {
-  //   std::async(
-  //       std::launch::async,
-  //       [&](int32_t entry_id_, bool commit) {
-  //         log_store_ptr->commit(entry_id_, commit);
-  //       },
-  //       request->entry_id(), request->commit());
-  //   response->set_success(TRUE);
-  //   raft_manager.update_last_contact();
-  // }
+  response->set_success(log_queue_->AppendEntries((*request)));
   return grpc::Status::OK;
 }
 
@@ -58,6 +31,11 @@ grpc::Status RaftServer::Heartbeat(grpc::ServerContext* context,
 
   if (raft_state_->GetState() == STATE::LEADER) {
     response->set_is_leader(true);
+    if (request->commit_id() != -1) {
+      auto it = cluster_manager_->Find(request->ip_port());
+      it->second.matchIndex = request->commit_id();
+      it->second.nextIndex = request->commit_id() + 1;
+    }
     return grpc::Status::OK;
   } else {
     response->set_is_leader(false);
@@ -98,21 +76,10 @@ grpc::Status RaftServer::NewLeader(grpc::ServerContext* context,
   auto ip_port = request->ip_port();
 
   bool res = cluster_manager_->UpdateLeader(ip_port, request->term());
+  rpc_calls_->AppendLogEntries(api_impl_->commited_idx);
+
   spdlog::warn("Result of update leader {}", (int)res);
   response->set_success(res);
-  // std::unique_lock<std::mutex> raft_manager_lock(raft_manager_mutex);
-  // std::cout << "someone with " << (request->ip_port())
-  //           << " says they are the new leader their term id is : "
-  //           << (request->term());
-  // if ((raft_manager.get_term_id() == (request->term()) &&
-  //      raft_manager.get_state() != CANDIDATE) ||
-  //     raft_manager.get_term_id() > (request->term())) {
-  //   response->set_success(FALSE);
-  // } else {
-  //   std::cout << "Found new leader : " << (request->ip_port()) << '\n';
-  //   raft_manager.change_state_to(
-  //       STATE::FOLLOWER, std::string(request->ip_port()), request->term());
-  //   response->set_success(TRUE);
   // }
   return grpc::Status::OK;
 }

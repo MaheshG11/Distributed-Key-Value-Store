@@ -27,11 +27,11 @@ bool ClusterManager::AddNode(const string& ip_port) {
   auto iter = cluster_map_.find(ip_port);
   auto res = true;
   if (iter == cluster_map_.end()) {
-    pair<string, STUB> node_stub{ip_port, ip_port};
+    pair<string, NodeState> node_stub{ip_port, ip_port};
     res = cluster_map_.insert(move(node_stub)).second;
 
   } else {
-    iter->second = STUB(ip_port);
+    iter->second = NodeState(ip_port);
   }
   spdlog::info("ClusterManager::AddNode {} | res {}", cluster_map_.size(), res);
 
