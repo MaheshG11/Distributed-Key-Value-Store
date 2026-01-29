@@ -65,6 +65,9 @@ void RunServer(int32_t election_timeout_low, int32_t election_timeout_high,
       std::chrono::milliseconds(heartbeat_timeout);
   raft_parameters.max_retries = max_retries;
   raft_parameters.this_ip_port = getLocalIP() + ":5556";
+  raft_parameters.path = path;
+  raft_parameters.size = 5;
+
   shared_ptr<RaftParameters> raft_param_ptr =
       make_shared<RaftParameters>(raft_parameters);
   raft_parameters.Print();
@@ -89,9 +92,6 @@ void get_help() {
   cout << "master_ip_port :                    IP Port of one of the members\n";
   cout << "path :                              Path at which the k-v store is "
           "to be initialized \n\n";
-  // cout << "cluster key :                       Key which is reponsible for "
-  //         "accessing the cluster \n\n";
-  ;
 }
 
 int main(int argc, char* argv[]) {
@@ -121,5 +121,4 @@ int main(int argc, char* argv[]) {
     cout << "Seems you had some errors while starting the program";
     get_help();
   }
-  // RunServer(300, 600, 50, 3);
 }

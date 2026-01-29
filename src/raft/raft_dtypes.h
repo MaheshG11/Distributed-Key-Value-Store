@@ -25,6 +25,7 @@ struct RaftParameters {
   std::chrono::milliseconds heartbeat_timeout;
   std::string this_ip_port;
   std::string cluster_key;
+  std::string path;  // path at which data will be stored
 
   void Print();
 };

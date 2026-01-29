@@ -6,12 +6,14 @@
 #include <memory>
 #include <string>
 #include "log_queue.h"
+#include "raft_state.h"
 // #include "log_store_impl.cpp"
 
 class ApiImpl : public KeyValueStoreRPC::Service {
 
  public:
-  ApiImpl();
+  ApiImpl(std::shared_ptr<RaftQueue> raft_queue,
+          std::shared_ptr<RaftState> raft_state);
   grpc::Status WriteRPC(grpc::ServerContext* context,
                         const StoreRequest* request, StoreResponse* response);
   grpc::Status GetRPC(grpc::ServerContext* context, const StoreRequest* request,
@@ -21,6 +23,5 @@ class ApiImpl : public KeyValueStoreRPC::Service {
 
  private:
   std::shared_ptr<RaftQueue> log_queue_;
-  //   Store& store;
-  //   std::shared_ptr<logStoreImpl> log_store_ptr;
+  std::shared_ptr<RaftState> raft_state_;
 };

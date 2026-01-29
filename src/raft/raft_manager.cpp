@@ -68,7 +68,7 @@ void RaftManager::StartServer(std::string master_ip_port) {
 
   shared_ptr<RaftManager> raft_manager_ptr(this);
   RaftServer raft_server(raft_manager_ptr);
-  ApiImpl api;
+  ApiImpl api(cluster_manager_->log_queue_, raft_state_);
   spdlog::warn("ip port {}", master_ip_port);
   grpc::ServerBuilder builder;
   builder.AddListeningPort(raft_parameters_->this_ip_port,

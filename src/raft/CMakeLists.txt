@@ -1,5 +1,21 @@
 set(CMAKE_BUILD_TYPE Debug)
 
+
+include_directories(
+        ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/protofiles
+        ${PROJECT_SOURCE_DIR}/src/raft
+        ${CMAKE_CURRENT_SOURCE_DIR}/cluster
+        ${CMAKE_CURRENT_SOURCE_DIR}/election
+        ${CMAKE_CURRENT_SOURCE_DIR}/heartbeat
+        ${CMAKE_CURRENT_SOURCE_DIR}/network
+        ${CMAKE_CURRENT_SOURCE_DIR}/kv_api
+        ${CMAKE_CURRENT_SOURCE_DIR}/state
+        ${CMAKE_CURRENT_SOURCE_DIR}/queue
+
+)
+
+
 # API
 add_library(API OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/kv_api/api.cpp
@@ -28,27 +44,13 @@ target_compile_definitions(API
     SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
 )
 
+
 add_library(RAFT_QUEUE OBJECT 
 ${CMAKE_CURRENT_SOURCE_DIR}/queue/log_queue.cpp
-)
-
-target_include_directories(RAFT_QUEUE 
-    PUBLIC 
-        ${PROJECT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/protofiles
-        ${PROJECT_SOURCE_DIR}/src/raft
-        ${CMAKE_CURRENT_SOURCE_DIR}/cluster
-        ${CMAKE_CURRENT_SOURCE_DIR}/
-        ${CMAKE_CURRENT_SOURCE_DIR}/election
-        ${CMAKE_CURRENT_SOURCE_DIR}/heartbeat
-        ${CMAKE_CURRENT_SOURCE_DIR}/network
-    ${CMAKE_CURRENT_SOURCE_DIR}/kv_api
-    ${CMAKE_CURRENT_SOURCE_DIR}/state
-${CMAKE_CURRENT_SOURCE_DIR}/queue/
-
-
+${CMAKE_CURRENT_SOURCE_DIR}/queue/store.cpp
 
 )
+
 
 # target_link_libraries(RAFT_QUEUE 
 #     PUBLIC
@@ -75,24 +77,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/network/rpc_calls.cpp
 
 
 
-target_include_directories(RAFT_SUPPORT 
-    PUBLIC 
-        ${PROJECT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/protofiles
-        ${PROJECT_SOURCE_DIR}/src/raft
-        ${CMAKE_CURRENT_SOURCE_DIR}/cluster
-        ${CMAKE_CURRENT_SOURCE_DIR}/
-        ${CMAKE_CURRENT_SOURCE_DIR}/election
-        ${CMAKE_CURRENT_SOURCE_DIR}/heartbeat
-            ${CMAKE_CURRENT_SOURCE_DIR}/kv_api
 
-        ${CMAKE_CURRENT_SOURCE_DIR}/network
-    ${CMAKE_CURRENT_SOURCE_DIR}/state
-${CMAKE_CURRENT_SOURCE_DIR}/queue/
-
-
-
-)
 
 # target_link_libraries(RAFT_SUPPORT 
 #     PUBLIC
@@ -112,24 +97,6 @@ add_library(RAFT_FEATURES OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/cluster/cluster_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/election/election.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/heartbeat/heartbeat_sensor.cpp
-)
-
-target_include_directories(RAFT_FEATURES 
-    PUBLIC 
-        ${PROJECT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/protofiles
-        ${PROJECT_SOURCE_DIR}/src/raft
-        ${CMAKE_CURRENT_SOURCE_DIR}/cluster
-        ${CMAKE_CURRENT_SOURCE_DIR}/
-        ${CMAKE_CURRENT_SOURCE_DIR}/election
-        ${CMAKE_CURRENT_SOURCE_DIR}/state
-        ${CMAKE_CURRENT_SOURCE_DIR}/network
-        ${CMAKE_CURRENT_SOURCE_DIR}/heartbeat
-        ${CMAKE_CURRENT_SOURCE_DIR}/queue/
-        ${CMAKE_CURRENT_SOURCE_DIR}/kv_api
-
-
-
 )
 
 # target_link_libraries(RAFT_FEATURES 
@@ -162,19 +129,10 @@ target_link_libraries(RAFT PUBLIC
         RAFT_FEATURES
         RAFT_SUPPORT
         RAFT_QUEUE
+        RocksDB::rocksdb
 
 )
-target_include_directories(RAFT PUBLIC 
-    ${CMAKE_CURRENT_SOURCE_DIR}/
-    ${PROJECT_SOURCE_DIR}/protofiles
-    ${CMAKE_CURRENT_SOURCE_DIR}/cluster
-    ${CMAKE_CURRENT_SOURCE_DIR}/election
-    ${CMAKE_CURRENT_SOURCE_DIR}/heartbeat
-    ${CMAKE_CURRENT_SOURCE_DIR}/state
-    ${CMAKE_CURRENT_SOURCE_DIR}/network
-    ${CMAKE_CURRENT_SOURCE_DIR}/kv_api
 
-)
 target_compile_definitions(RAFT
     PRIVATE 
     SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG

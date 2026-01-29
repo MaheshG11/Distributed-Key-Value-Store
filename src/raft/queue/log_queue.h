@@ -5,12 +5,13 @@
 #include <thread>
 #include "gRPC_Communication.grpc.pb.h"
 #include "gRPC_Communication.pb.h"
+#include "store.h"
 class RaftQueue {
  public:
   /**
    * @brief constructor
    */
-  RaftQueue();
+  RaftQueue(std::string& path);
 
   /**
   * @brief get All the entries from the given param to the end 
@@ -26,6 +27,12 @@ class RaftQueue {
   * @param entry
   */
   bool AppendEntry(const StoreRequest& entry);
+
+  /**
+  * @brief add entry to the queue 
+  * @param entry
+  */
+  std::pair<std::string, bool> GetValue(const StoreRequest& entry);
 
   /**
   * @brief add all entries in request 
@@ -83,4 +90,5 @@ class RaftQueue {
   int64_t commit_idx_ = -1;
   int32_t commit_id_, commit_arr_id_ = 0;
   std::thread append_entries_thread_;
+  Store store;
 };

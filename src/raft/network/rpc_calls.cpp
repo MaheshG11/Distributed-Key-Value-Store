@@ -20,7 +20,8 @@ RPCCalls::RPCCalls(shared_ptr<RaftParameters> raft_parameters,
                    shared_ptr<ClusterManager> cluster_manager)
     : cluster_manager_(cluster_manager),
       raft_parameters_(raft_parameters),
-      raft_state_(raft_state) {
+      raft_state_(raft_state),
+      log_queue_(cluster_manager->log_queue_) {
   spdlog::info("RPCCalls(constructor): Enter");
 }
 
@@ -31,9 +32,11 @@ RPCCalls::RPCCalls(shared_ptr<RaftParameters> raft_parameters,
      * @param success_fut future for success
      */
 void RPCCalls::AppendLogEntries(atomic<int64_t>& commited_idx) {
-  if (is_append_entries_running || raft_state_->GetState() != LEADER) {
+  if (raft_state_->GetState() != LEADER) {
     StopAppendentries();
     return;
+  } else if (is_append_entries_running) {
+    StopAppendentries();
   }
   std::thread new_thread = thread([&]() { appendLogEntries(commited_idx); });
   swap(new_thread, append_entries_thread);
@@ -366,9 +369,12 @@ bool RPCCalls::SendMemberRequest(std::string ip_port, bool broadcast) {
      * @param success_fut future for success
      */
 void RPCCalls::appendLogEntries(atomic<int64_t>& commited_idx) {
+  spdlog::info("RPCCalls::appendLogEntries: Enter");
+
   is_append_entries_running = true;
   while (cluster_manager_->Size() < raft_parameters_->size) {
     this_thread::sleep_for(chrono::milliseconds(500));
+    spdlog::warn("Waiting for all the nodes to join(initialize only): Enter\n");
   }
   while (true) {
     vector<int64_t> match_idxs;

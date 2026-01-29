@@ -79,6 +79,9 @@ class ClusterManager {
 
   inline size_t Size() { return cluster_map_.size(); };
 
+  friend class RPCCalls;
+  friend class RaftManager;
+
  private:
   std::map<std::string, NodeState> cluster_map_;
   std::unique_ptr<Raft::Stub> leader_stub_;

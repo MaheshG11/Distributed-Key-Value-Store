@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # These exports configures cmake path 
-export MY_INSTALL_DIR=$HOME/.local
+export MY_INSTALL_DIR=/usr/local
 export PATH="$MY_INSTALL_DIR/bin:$PATH"
 
 

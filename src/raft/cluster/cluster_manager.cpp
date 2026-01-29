@@ -15,6 +15,7 @@ ClusterManager::ClusterManager(shared_ptr<RaftParameters> raft_parameters,
                                shared_ptr<RaftState> raft_state)
     : raft_parameters_(raft_parameters), raft_state_(raft_state) {
   spdlog::info("ClusterManager(constructor): Enter");
+  log_queue_ = make_shared<RaftQueue>(raft_parameters->path);
 }
 
 /**
@@ -23,6 +24,7 @@ ClusterManager::ClusterManager(shared_ptr<RaftParameters> raft_parameters,
   * @returns true on success
   */
 bool ClusterManager::AddNode(const string& ip_port) {
+  spdlog::info("ClusterManager::AddNode: Enter");
 
   auto iter = cluster_map_.find(ip_port);
   auto res = true;
