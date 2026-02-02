@@ -26,10 +26,7 @@ class RaftServer : public Raft::Service {
                          LeaderChangeResponse* response) override;
   grpc::Status UpdateClusterMember(grpc::ServerContext* context,
                                    const MemberRequest* request,
-                                   MemberResponse* response) override;
-  grpc::Status ShareClusterInfo(grpc::ServerContext* context,
-                                const ::ClusterInfo* request,
-                                CommitResponse* response) override;
+                                   ClusterInfo* response) override;
 
  private:
   std::shared_ptr<RaftParameters> raft_parameters_;

@@ -8,14 +8,14 @@
 using namespace std;
 ApiImpl::ApiImpl(shared_ptr<RaftQueue> log_queue,
                  std::shared_ptr<RaftState> raft_state)
-    : log_queue_(log_queue), raft_state_(raft_state) {
-  spdlog::info("ApiImpl::ApiImpl(constructor): Enter");
+    : log_queue_(log_queue), raft_state_(raft_state), commited_idx(-1) {
+  SPDLOG_INFO("ApiImpl::ApiImpl(constructor): Enter");
 }
 
 grpc::Status ApiImpl::GetRPC(grpc::ServerContext* context,
                              const StoreRequest* request,
                              StoreResponse* response) {
-  spdlog::info("ApiImpl::GetRPC: Enter");
+  SPDLOG_INFO("ApiImpl::GetRPC: Enter");
 
   std::string key = request->key();
   std::pair<std::string, bool> res = log_queue_->GetValue((*request));
@@ -30,10 +30,12 @@ grpc::Status ApiImpl::GetRPC(grpc::ServerContext* context,
 grpc::Status ApiImpl::WriteRPC(grpc::ServerContext* context,
                                const StoreRequest* request,
                                StoreResponse* response) {
-  spdlog::info("ApiImpl::WriteRPC: Enter");
-
+  SPDLOG_INFO("ApiImpl::WriteRPC: Enter");
+  curr_id++;
+  StoreRequest req = (*request);
+  req.set_id(curr_id.load());
   if (raft_state_->GetState() == LEADER) {
-    response->set_ok(log_queue_->AppendEntry((*request)));
+    response->set_ok(log_queue_->AppendEntry(req));
   } else {
     response->set_ok(false);
     response->set_key("not a leader");

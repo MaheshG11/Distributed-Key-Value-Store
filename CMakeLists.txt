@@ -13,6 +13,10 @@ find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 find_package(spdlog REQUIRED)
 
+add_compile_definitions(
+    SPDLOG_ENABLE_SOURCE_LOC
+    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
+)
 
 find_package(Boost REQUIRED COMPONENTS random system)
 include_directories($ENV{HOME}/.local/include)
@@ -48,14 +52,8 @@ target_link_libraries(distributed_kv_store
         gRPC::grpc++
         Boost::random
         Boost::system
-        spdlog::spdlog
+        spdlog::spdlog_header_only
 
-)
-
-target_compile_definitions(distributed_kv_store
-    PRIVATE
-    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
-    SPDLOG_ENABLE_SOURCE_LOC
 )
 
 

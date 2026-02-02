@@ -9,10 +9,13 @@
 #include "raft_dtypes.h"
 #include "raft_manager_callback.h"
 #include "raft_state.h"
+class RaftServer;
+class ApiImpl;
 /**
  * @brief RaftManager 
  */
-class RaftManager : public RaftManagerCallback {
+class RaftManager : public RaftManagerCallback,
+                    public std::enable_shared_from_this<RaftManager> {
  public:
   /**
   * @brief constructor
@@ -38,6 +41,10 @@ class RaftManager : public RaftManagerCallback {
 
   std::shared_ptr<HeartbeatSensor> heartbeat_sensor_;
   std::shared_ptr<ApiImpl> api_impl_;
+
+  // Keep gRPC service and server alive for the lifetime of the manager
+  std::shared_ptr<RaftServer> raft_server_impl_;
+  std::unique_ptr<grpc::Server> server_;
 
   //   std::shared_ptr<RaftParameters> raft_parameters_;
   //   std::shared_ptr<RaftState> raft_state_;

@@ -97,4 +97,5 @@
         "editor.defaultFormatter": "ms-vscode.cpptools"
     },
     "C_Cpp.errorSquiggles": "enabled",
+    "C_Cpp.default.cppStandard": "c++20"
 }

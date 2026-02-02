@@ -7,13 +7,13 @@ using namespace std;
 Election::Election(shared_ptr<RaftState> raft_state,
                    shared_ptr<RPCCalls> rpc_calls)
     : raft_state_(raft_state), rpc_calls_(rpc_calls) {
-  spdlog::info("Election(constructor): Enter");
+  SPDLOG_INFO("Election(constructor): Enter");
 
   last_voted_ = "";
   last_voted_term_ = -1;
 }
 void Election::Start(promise<bool> election_res) {
-  spdlog::info("Election::Start: Enter");
+  SPDLOG_INFO("Election::Start: Enter");
 
   promise<bool> won_prom;
   future<bool> won = won_prom.get_future();
@@ -35,7 +35,7 @@ void Election::Start(promise<bool> election_res) {
 
 bool Election::CanVote(int32_t term_id, int64_t last_commit_index,
                        string& ip_port) {
-  spdlog::info("Election::CanVote: Enter");
+  SPDLOG_INFO("Election::CanVote: Enter");
 
   lock_guard<mutex> lock1(last_voted_mtx_);
   if (raft_state_->GetTerm() < term_id) {

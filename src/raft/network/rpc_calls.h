@@ -10,6 +10,7 @@
 /**
  * @brief Make and manage all the RPC calls
  */
+class ClusterManager;
 class RPCCalls {
 
  public:
@@ -67,7 +68,7 @@ class RPCCalls {
    * @param ip_port address of the node to send cluster info with
    * @param cluster_key cluster auth key
    */
-  bool ShareClusterInfo(std::string ip_port, std::string cluster_key);
+  void GetClusterInfo(ClusterInfo* request, std::string cluster_key);
 
   /**
    * @brief Requests votes from all other nodes 

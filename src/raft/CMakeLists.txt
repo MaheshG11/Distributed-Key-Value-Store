@@ -38,12 +38,6 @@ ${CMAKE_CURRENT_SOURCE_DIR}/queue/
 #         gRPC_Communication_Lib 
 #         gRPC::grpc++
 # )
-target_compile_definitions(API
-    PUBLIC 
-    SPDLOG_ENABLE_SOURCE_LOC
-    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
-)
-
 
 add_library(RAFT_QUEUE OBJECT 
 ${CMAKE_CURRENT_SOURCE_DIR}/queue/log_queue.cpp
@@ -51,20 +45,6 @@ ${CMAKE_CURRENT_SOURCE_DIR}/queue/store.cpp
 
 )
 
-
-# target_link_libraries(RAFT_QUEUE 
-#     PUBLIC
-#         # store 
-#         gRPC_Communication_Lib 
-#         gRPC::grpc++
-        
-# )
-target_compile_definitions(RAFT_QUEUE
-    PRIVATE 
-    SPDLOG_ENABLE_SOURCE_LOC
-    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
-
-)
 
 
 
@@ -79,18 +59,6 @@ ${CMAKE_CURRENT_SOURCE_DIR}/network/rpc_calls.cpp
 
 
 
-# target_link_libraries(RAFT_SUPPORT 
-#     PUBLIC
-#         # store 
-#         gRPC_Communication_Lib 
-#         gRPC::grpc++
-# )
-target_compile_definitions(RAFT_SUPPORT
-    PRIVATE 
-    SPDLOG_ENABLE_SOURCE_LOC
-    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
-
-)
 
 # RAFT_FEATURES
 add_library(RAFT_FEATURES OBJECT
@@ -99,17 +67,7 @@ add_library(RAFT_FEATURES OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/heartbeat/heartbeat_sensor.cpp
 )
 
-# target_link_libraries(RAFT_FEATURES 
-#     PUBLIC
-#         # store 
-#         gRPC_Communication_Lib 
-#         gRPC::grpc++
-# )
-target_compile_definitions(RAFT_FEATURES
-    PRIVATE 
-    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
-    SPDLOG_ENABLE_SOURCE_LOC
-)
+
 
 
 #RAFT
@@ -124,18 +82,12 @@ add_library(RAFT STATIC
 target_link_libraries(RAFT PUBLIC 
         gRPC_Communication_Lib 
         gRPC::grpc++
-        spdlog::spdlog
+        spdlog::spdlog_header_only
         API
         RAFT_FEATURES
         RAFT_SUPPORT
         RAFT_QUEUE
         RocksDB::rocksdb
 
-)
-
-target_compile_definitions(RAFT
-    PRIVATE 
-    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
-    SPDLOG_ENABLE_SOURCE_LOC
 )
 

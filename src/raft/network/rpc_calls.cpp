@@ -22,7 +22,7 @@ RPCCalls::RPCCalls(shared_ptr<RaftParameters> raft_parameters,
       raft_parameters_(raft_parameters),
       raft_state_(raft_state),
       log_queue_(cluster_manager->log_queue_) {
-  spdlog::info("RPCCalls(constructor): Enter");
+  SPDLOG_INFO("RPCCalls(constructor): Enter");
 }
 
 /**
@@ -32,17 +32,23 @@ RPCCalls::RPCCalls(shared_ptr<RaftParameters> raft_parameters,
      * @param success_fut future for success
      */
 void RPCCalls::AppendLogEntries(atomic<int64_t>& commited_idx) {
+  SPDLOG_INFO("RPCCalls::AppendLogEntries");
+
   if (raft_state_->GetState() != LEADER) {
     StopAppendentries();
     return;
   } else if (is_append_entries_running) {
     StopAppendentries();
   }
-  std::thread new_thread = thread([&]() { appendLogEntries(commited_idx); });
+  std::thread new_thread = thread(
+      [&](atomic<int64_t>& commited_idx) { appendLogEntries(commited_idx); },
+      std::ref(commited_idx));
   swap(new_thread, append_entries_thread);
 }
 
 void RPCCalls::StopAppendentries() {
+  SPDLOG_INFO("RPCCalls::StopAppendentries");
+
   is_append_entries_running = false;
   if (append_entries_thread.joinable())
     append_entries_thread.join();
@@ -53,12 +59,11 @@ void RPCCalls::StopAppendentries() {
  * @param entry the entry to forward to master
 */
 bool RPCCalls::ForwardLogEntry(::LogRequest entry) {
-  spdlog::info("RPCCalls::ForwardLogEntry: Enter");
+  SPDLOG_INFO("RPCCalls::ForwardLogEntry: Enter");
 
   grpc::ClientContext context;
   ::LogResponse response;
   if (raft_state_->GetLeaderAvailable()) {
-    lock_guard<mutex> lock1(cluster_manager_->GetLeaderMutex());
     cluster_manager_->GetLeaderStub()->SendLogEntry(&context, entry, &response);
   } else {
     return false;
@@ -70,7 +75,7 @@ bool RPCCalls::ForwardLogEntry(::LogRequest entry) {
  * @brief broadcast new leader to all the other nodes
 */
 void RPCCalls::BroadcastNewLeader() {
-  spdlog::info("RPCCalls::BroadcastNewLeader: Enter");
+  SPDLOG_INFO("RPCCalls::BroadcastNewLeader: Enter");
 
   LeaderChangeRequest request;
   request.set_ip_port(raft_parameters_->this_ip_port);
@@ -82,7 +87,7 @@ void RPCCalls::BroadcastNewLeader() {
   for (auto& [ip_port, stub] : (*cluster_manager_)) {
     if (ip_port == raft_parameters_->this_ip_port)
       continue;
-    spdlog::warn("Informing New Leader to {}", ip_port);
+    SPDLOG_WARN("Informing New Leader to {}", ip_port);
 
     int32_t idx_copy = idx++;
     futures[idx_copy] = std::async(
@@ -107,11 +112,11 @@ void RPCCalls::BroadcastNewLeader() {
  * @brief broadcast if a member down or has joined the cluster
 */
 bool RPCCalls::BroadcastMemberUpdate(MemberRequest request) {
-  spdlog::info("RPCCalls::BroadcastMemberUpdate: Enter");
+  SPDLOG_INFO("RPCCalls::BroadcastMemberUpdate: Enter");
 
   int32_t sz = cluster_manager_->GetNodesCnt() - 1;
   grpc::ClientContext context;
-  std::vector<MemberResponse> response(sz);
+  std::vector<ClusterInfo> response(sz);
   std::vector<grpc::Status> status(sz);
   std::vector<std::future<void>> futures(sz);
 
@@ -121,15 +126,17 @@ bool RPCCalls::BroadcastMemberUpdate(MemberRequest request) {
   for (auto& [ip_port, stub] : (*cluster_manager_)) {
     if (ip_port == raft_parameters_->this_ip_port)
       continue;
+    SPDLOG_WARN("RPCCalls::BroadcastMemberUpdate:: ip_port:{} ", ip_port);
+
     int32_t idx_copy = idx++;
     futures[idx_copy] = std::async(
         std::launch::async,
         [&, idx_copy](NodeState& stub) {
           Retry(
               [&](grpc::ClientContext* ctx, const MemberRequest req,
-                  MemberResponse* res) {
+                  ClusterInfo* res) {
                 auto stat = stub.s2->UpdateClusterMember(ctx, req, res);
-                if (stat.error_code() == grpc::StatusCode::OK && res->success())
+                if (stat.error_code() == grpc::StatusCode::OK)
                   cnt++;
                 return stat;
               },
@@ -143,7 +150,7 @@ bool RPCCalls::BroadcastMemberUpdate(MemberRequest request) {
   for (int32_t i = 0; i < idx; i++) {
     try {
       futures[i].get();
-      if (!status[i].ok() || !response[i].success()) {
+      if (!status[i].ok()) {
         continue;
       }
     } catch (const std::exception& e) {
@@ -152,6 +159,7 @@ bool RPCCalls::BroadcastMemberUpdate(MemberRequest request) {
   }
 
   if (cnt >= (cluster_manager_->GetNodesCnt() / 2)) {
+    SPDLOG_WARN("RPCCalls::BroadcastMemberUpdate:: Returning True ");
     return true;
   }
   return false;
@@ -161,7 +169,7 @@ bool RPCCalls::BroadcastMemberUpdate(MemberRequest request) {
  * @brief send heartbeat to the leader
 */
 BeatsResponse RPCCalls::SendHeartbeat(HeartRequest& request) {
-  spdlog::info("RPCCalls::SendHeartbeat: Enter");
+  SPDLOG_INFO("RPCCalls::SendHeartbeat: Enter");
 
   BeatsResponse response;
   response.set_is_leader(false);
@@ -169,9 +177,7 @@ BeatsResponse RPCCalls::SendHeartbeat(HeartRequest& request) {
   response.set_term(-1);
   grpc::ClientContext context;
   grpc::Status status;
-  std::unique_lock<std::mutex> leader_info_lock(
-      cluster_manager_->GetLeaderMutex());
-  std::unique_ptr<Raft::Stub>& leader_stub = cluster_manager_->GetLeaderStub();
+  std::shared_ptr<Raft::Stub> leader_stub = cluster_manager_->GetLeaderStub();
   if (leader_stub != nullptr) {
     Retry(
         [&](grpc::ClientContext* ctx, const HeartRequest req,
@@ -183,41 +189,30 @@ BeatsResponse RPCCalls::SendHeartbeat(HeartRequest& request) {
   return response;
 }
 
-bool RPCCalls::ShareClusterInfo(std::string ip_port, std::string cluster_key_) {
-  spdlog::info("RPCCalls::ShareClusterInfo: Enter");
-
+void RPCCalls::GetClusterInfo(ClusterInfo* request, std::string cluster_key_) {
+  SPDLOG_INFO("RPCCalls::GetClusterInfo: Enter");
   int32_t sz = cluster_manager_->GetNodesCnt();
-  ClusterInfo request;
-  CommitResponse response;
-  request.set_cluster_key(cluster_key_);
-  grpc::ClientContext context;
-  request.set_leader_ip_port((cluster_manager_->GetLeader()).first);
-  request.set_term(raft_state_->GetTerm());
+  request->set_cluster_key(cluster_key_);
 
-  grpc::Status status;
-  spdlog::warn("RPCCalls::ShareClusterInfo term:{} | {}",
-               raft_state_->GetTerm(), (cluster_manager_->GetLeader()).first);
+  auto leader_info = cluster_manager_->GetLeader();
+  if (!leader_info.first.empty()) {
+    request->set_leader_ip_port(leader_info.first);
+  }
+  request->set_term(raft_state_->GetTerm());
+
+  SPDLOG_WARN("RPCCalls::GetClusterInfo term:{} | {}", raft_state_->GetTerm(),
+              leader_info.first);
   for (auto& [ip_port_it, stub] : (*cluster_manager_)) {
-    request.add_ip_port(ip_port_it);
-  }
-  auto it = cluster_manager_->Find(ip_port);
-  if (it == cluster_manager_->end()) {
-    return false;
-  }
-  auto res = (it->second).s2->ShareClusterInfo(&context, request, &response);
-  spdlog::warn("RPCCalls::ShareClusterInfo response:{} ", res.error_code());
 
-  if (res.error_code() == grpc::StatusCode::OK) {
-    return true;
+    request->add_ip_port(ip_port_it);
   }
-  return false;
 }
 
 void RPCCalls::CollectVotes(promise<bool> won, future<bool>& won_fut) {
-  spdlog::info("RPCCalls::CollectVotes: Enter");
+  SPDLOG_INFO("RPCCalls::CollectVotes: Enter");
 
   int32_t sz = cluster_manager_->GetNodesCnt() - 1;
-  spdlog::info("RPCCalls::CollectVotes: GetNodesCnt{}", sz);
+  SPDLOG_INFO("RPCCalls::CollectVotes: GetNodesCnt{}", sz);
 
   std::vector<std::future<void>> futures(sz);
   std::vector<grpc::Status> status(sz);
@@ -231,7 +226,7 @@ void RPCCalls::CollectVotes(promise<bool> won, future<bool>& won_fut) {
   atomic<bool> got_res{false};
   int idx = 0;
   for (auto& [ip_port, stub] : (*cluster_manager_)) {
-    spdlog::info("RPCCalls::CollectVotes: ip_port : {}", ip_port);
+    SPDLOG_INFO("RPCCalls::CollectVotes: ip_port : {}", ip_port);
     if (ip_port == raft_parameters_->this_ip_port)
       continue;
     int32_t idx_copy = idx++;
@@ -257,10 +252,10 @@ void RPCCalls::CollectVotes(promise<bool> won, future<bool>& won_fut) {
   for (auto& fut : futures)
     fut.get();
   if (won_fut.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-    spdlog::warn("RPCCalls::CollectVotes : Votes{}", votes.load());
+    SPDLOG_WARN("RPCCalls::CollectVotes : Votes{}", votes.load());
     return;
   }
-  spdlog::warn("RPCCalls::CollectVotes : Votes{}", votes.load());
+  SPDLOG_WARN("RPCCalls::CollectVotes : Votes{}", votes.load());
   if (votes > cluster_manager_->GetNodesCnt() / 2) {
     won.set_value(true);
     return;
@@ -271,7 +266,7 @@ void RPCCalls::CollectVotes(promise<bool> won, future<bool>& won_fut) {
 template <typename Func, typename... Args>
 bool RPCCalls::Retry(Func&& func, std::chrono::milliseconds& timeout,
                      grpc::Status& status, Args&&... args) {
-  spdlog::info("RPCCalls::Retry 1: Enter\n");
+  SPDLOG_INFO("RPCCalls::Retry 1: Enter");
 
   auto deadline = std::chrono::system_clock::now() +
                   std::chrono::milliseconds(100) + timeout;  // 500 ms timeout
@@ -303,7 +298,7 @@ bool RPCCalls::Retry(Func&& func, std::chrono::milliseconds& timeout,
                      std::promise<bool>& prom, std::future<bool>& fut,
                      std::atomic<int32_t>& votes, std::atomic<bool>& got_res,
                      Response* response, Request& request) {
-  spdlog::info("RPCCalls::Retry 2: Enter\n");
+  SPDLOG_INFO("RPCCalls::Retry 2: Enter");
 
   auto deadline = std::chrono::system_clock::now() +
                   std::chrono::milliseconds(100) + timeout;  // 500 ms timeout
@@ -314,8 +309,8 @@ bool RPCCalls::Retry(Func&& func, std::chrono::milliseconds& timeout,
     deadline = chrono::system_clock::now() + chrono::milliseconds(100) +
                timeout;  // 500 ms timeout
     context.set_deadline(deadline);
-    spdlog::info("RPCCalls::Retry 2:{}{}", retries,
-                 raft_parameters_->max_retries);
+    SPDLOG_INFO("RPCCalls::Retry 2:{}{}", retries,
+                raft_parameters_->max_retries);
 
     status = func(&context, request, response);
     if (status.error_code() == grpc::StatusCode::DEADLINE_EXCEEDED) {
@@ -344,19 +339,27 @@ bool RPCCalls::Retry(Func&& func, std::chrono::milliseconds& timeout,
 }
 
 bool RPCCalls::SendMemberRequest(std::string ip_port, bool broadcast) {
-  spdlog::info("RPCCalls::SendMemberRequest: Enter");
+  SPDLOG_INFO("RPCCalls::SendMemberRequest: Enter");
 
   auto stub = Raft::NewStub(
       grpc::CreateChannel(ip_port, grpc::InsecureChannelCredentials()));
   grpc::ClientContext context;
-  MemberResponse response;
+  ClusterInfo response;
   MemberRequest request;
   request.set_ip_port(raft_parameters_->this_ip_port);
   request.set_cluster_key(raft_parameters_->cluster_key);
   request.set_broadcast(broadcast);
 
   auto status = stub->UpdateClusterMember(&context, request, &response);
-  if (status.error_code() == StatusCode::OK && response.success()) {
+  if (broadcast) {
+
+    for (const auto& ip_port : response.ip_port()) {
+      cluster_manager_->AddNode(ip_port);
+    }
+    string leader_ip_port = response.leader_ip_port();
+    cluster_manager_->UpdateLeader(leader_ip_port, response.term());
+  }
+  if (status.error_code() == StatusCode::OK) {
     return true;
   }
   return false;
@@ -369,32 +372,62 @@ bool RPCCalls::SendMemberRequest(std::string ip_port, bool broadcast) {
      * @param success_fut future for success
      */
 void RPCCalls::appendLogEntries(atomic<int64_t>& commited_idx) {
-  spdlog::info("RPCCalls::appendLogEntries: Enter");
-
+  SPDLOG_INFO("RPCCalls::appendLogEntries: Enter");
   is_append_entries_running = true;
-  while (cluster_manager_->Size() < raft_parameters_->size) {
+  // while (true) {
+  while (cluster_manager_->Size() < raft_parameters_->size &&
+         is_append_entries_running) {
     this_thread::sleep_for(chrono::milliseconds(500));
-    spdlog::warn("Waiting for all the nodes to join(initialize only): Enter\n");
+    SPDLOG_WARN("Waiting for all the nodes to join(initialize only): {} {}",
+                cluster_manager_->Size(), raft_parameters_->size);
   }
-  while (true) {
+  atomic<int64_t> commited_across_all = -1;
+  int64_t mini_commit_id = LONG_MIN;
+
+  while (is_append_entries_running) {
+    SPDLOG_INFO("performing append entries iteration");
+
     vector<int64_t> match_idxs;
+
     auto it = cluster_manager_->begin();
     LogRequest request;
     ClientContext context;
     request.set_term(raft_state_->GetTerm());
+    int64_t min_commit_id = LONG_MAX;
+
     while (it != cluster_manager_->end()) {
       auto deadline = chrono::system_clock::now() + chrono::milliseconds(500);
       context.set_deadline(deadline);
 
+      if (it->second.commitedId == log_queue_->GetMostRecentId()) {
+        match_idxs.push_back(it->second.matchIndex);
+        min_commit_id = min(min_commit_id, it->second.commitedId);
+        it++;
+        continue;
+      }
       log_queue_->GetEntries(it->second.nextIndex, request);
       request.set_commit_idx(commited_idx);
+      SPDLOG_INFO("GetEntries Size: {}", request.entries_size());
+
       LogResponse response;
       auto entries = request.entries();
-      if (entries.size())
-        it->second.s2->SendLogEntry(&context, request, &response);
-      else
+      if (entries.size()) {
+        if (it->first == raft_parameters_->this_ip_port) {
+          response.set_success(log_queue_->AppendEntries(request));
+
+        } else
+          it->second.s2->SendLogEntry(&context, request, &response);
+      } else {
+        it++;
+        min_commit_id = min(min_commit_id, it->second.commitedId);
+        match_idxs.push_back(it->second.matchIndex);
         continue;
+      }
       if (response.success()) {
+        SPDLOG_INFO("Recieved success from {}", it->first);
+
+        min_commit_id = min(min_commit_id, it->second.matchIndex);
+        it->second.commitedId = it->second.matchIndex;
         if (entries.size()) {
           auto match_idx = entries.cbegin()->id();
           it->second.nextIndex = match_idx + 1;
@@ -402,14 +435,32 @@ void RPCCalls::appendLogEntries(atomic<int64_t>& commited_idx) {
           match_idxs.push_back(match_idx);
         }
       } else {
+        SPDLOG_WARN("Recieved failure from {}", it->first);
+
+        it->second.nextIndex =
+            max<int64_t>(1, it->second.nextIndex - 1);  // decrement next index
       }
       it++;
     }
     sort(match_idxs.begin(), match_idxs.end());
     int sz = match_idxs.size();
     if (sz) {
+      SPDLOG_WARN("Matched indexes: {}", match_idxs.size());
+
       commited_idx = match_idxs[(sz - 1) / 2];
       commited_idx.notify_all();
+      SPDLOG_WARN("Matched indexes: {}", commited_idx.load());
+
+      log_queue_->CommitEntry(commited_idx);
     }
+    mini_commit_id = min_commit_id;
+    if (commited_idx >= 0) {
+      SPDLOG_WARN("Exiting");
+      exit(0);
+    }
+    if (mini_commit_id < log_queue_->GetMostRecentId())
+      continue;
+    // is_append_entries_running = false;
+    this_thread::sleep_for(chrono::microseconds(100));
   }
 }

@@ -12,7 +12,7 @@ using namespace std;
   * @param member_ip_port address of any member from the cluster
   */
 RaftManager::RaftManager(shared_ptr<RaftParameters> raft_parameters) {
-  spdlog::info("RaftManager(constructor): Enter");
+  SPDLOG_INFO("RaftManager(constructor): Enter");
 
   raft_parameters_ = raft_parameters;
 
@@ -26,24 +26,24 @@ RaftManager::RaftManager(shared_ptr<RaftParameters> raft_parameters) {
   cluster_manager_->AddNode(raft_parameters_->this_ip_port);
   rpc_calls_ =
       make_shared<RPCCalls>(raft_parameters_, raft_state_, cluster_manager_);
+  cluster_manager_->SetRPCCalls(rpc_calls_);
 
   election_ = make_shared<Election>(raft_state_, rpc_calls_);
 }
 
 RaftManager::~RaftManager() {
-  spdlog::info("RaftManager::~RaftManager: Enter\n");
+  SPDLOG_INFO("RaftManager::~RaftManager: Enter\n");
 }
 
 bool RaftManager::ChangeState(std::string ip_port, int32_t term_) {
-  spdlog::info("RaftManager::ChangeState: Enter\n");
+  SPDLOG_INFO("RaftManager::ChangeState: Enter\n");
 
   cluster_manager_->UpdateLeader(ip_port, term_);
-  rpc_calls_->AppendLogEntries(api_impl_->commited_idx);
 
   return true;
 }
 bool RaftManager::StartElection() {
-  spdlog::info("RaftManager::StartElection: Enter\n");
+  SPDLOG_INFO("RaftManager::StartElection: Enter\n");
 
   promise<bool> election_prom;
   future<bool> election_fut = election_prom.get_future();
@@ -58,28 +58,34 @@ bool RaftManager::StartElection() {
 }
 
 std::pair<std::string, int32_t> RaftManager::GetLeader() {
-  spdlog::info("RaftManager::GetLeader: Enter\n");
+  SPDLOG_INFO("RaftManager::GetLeader: Enter\n");
 
   return cluster_manager_->GetLeader();
 }
 
 void RaftManager::StartServer(std::string master_ip_port) {
-  spdlog::info("RaftManager::StartServer");
+  SPDLOG_INFO("RaftManager::StartServer");
+  SPDLOG_WARN("RaftManager::StartServer ip port {}", master_ip_port);
 
-  shared_ptr<RaftManager> raft_manager_ptr(this);
-  RaftServer raft_server(raft_manager_ptr);
-  ApiImpl api(cluster_manager_->log_queue_, raft_state_);
-  spdlog::warn("ip port {}", master_ip_port);
+  // get a shared_ptr to this manager (requires that the manager is
+  // created as a shared_ptr)
+  auto raft_manager_ptr = shared_from_this();
+
+  // allocate service objects on the heap and keep them alive in members
+  raft_server_impl_ = std::make_shared<RaftServer>(raft_manager_ptr);
+  api_impl_ =
+      std::make_shared<ApiImpl>(cluster_manager_->log_queue_, raft_state_);
+  cluster_manager_->SetApiImpl(api_impl_);
   grpc::ServerBuilder builder;
   builder.AddListeningPort(raft_parameters_->this_ip_port,
                            grpc::InsecureServerCredentials());
-  builder.RegisterService(&raft_server);
-  builder.RegisterService(&api);
-  std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+  builder.RegisterService(raft_server_impl_.get());
+  builder.RegisterService(api_impl_.get());
 
-  spdlog::warn("Server listening on {}", raft_parameters_->this_ip_port);
+  server_ = builder.BuildAndStart();
+  SPDLOG_WARN("Server listening on {}", raft_parameters_->this_ip_port);
 
-  if (!server) {
+  if (!server_) {
     spdlog::error("server failed to start");
     throw std::runtime_error("unable to start server");
   }
@@ -87,6 +93,7 @@ void RaftManager::StartServer(std::string master_ip_port) {
   if (master_ip_port != "null") {
     auto status = (rpc_calls_->SendMemberRequest(master_ip_port, true));
   }
+
   heartbeat_sensor_ = make_shared<HeartbeatSensor>(this);
   heartbeat_sensor_->Start();
 }

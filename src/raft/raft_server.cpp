@@ -11,15 +11,15 @@ RaftServer::RaftServer(std::shared_ptr<RaftManager> raft_manager)
       raft_state_(raft_manager->raft_state_),
       rpc_calls_(raft_manager_->rpc_calls_),
       cluster_manager_(raft_manager_->cluster_manager_),
-      election_(raft_manager_->election_) {
-  spdlog::info("RaftServer(constructor): Enter");
+      election_(raft_manager_->election_),
+      log_queue_(cluster_manager_->log_queue_) {
+  SPDLOG_INFO("RaftServer(constructor): Enter");
 }
 
 grpc::Status RaftServer::SendLogEntry(grpc::ServerContext* context,
                                       const LogRequest* request,
                                       LogResponse* response) {
-  // log_store_ptr->append_entry(*request);
-  spdlog::info("RaftServer::SendLogEntry: Enter");
+  SPDLOG_INFO("RaftServer::SendLogEntry: Enter");
   response->set_success(log_queue_->AppendEntries((*request)));
   return grpc::Status::OK;
 }
@@ -27,7 +27,7 @@ grpc::Status RaftServer::SendLogEntry(grpc::ServerContext* context,
 grpc::Status RaftServer::Heartbeat(grpc::ServerContext* context,
                                    const HeartRequest* request,
                                    BeatsResponse* response) {
-  spdlog::info("RaftServer::Heartbeat: Enter");
+  SPDLOG_INFO("RaftServer::Heartbeat: Enter");
 
   if (raft_state_->GetState() == STATE::LEADER) {
     response->set_is_leader(true);
@@ -41,44 +41,37 @@ grpc::Status RaftServer::Heartbeat(grpc::ServerContext* context,
     response->set_is_leader(false);
   }
   response->set_term(raft_state_->GetTerm());
-  response->set_leader_ip_port(raft_manager_->GetLeader().first);
+
+  // Get leader info and only set if valid
+  auto leader_info = raft_manager_->GetLeader();
+  if (!leader_info.first.empty()) {
+    response->set_leader_ip_port(leader_info.first);
+  }
+
   return grpc::Status::OK;
 }
 
 grpc::Status RaftServer::VoteRPC(grpc::ServerContext* context,
                                  const VoteRequest* request,
                                  VoteResponse* response) {
-  spdlog::info("RaftServer::VoteRPC: Enter");
+  SPDLOG_INFO("RaftServer::VoteRPC: Enter");
   auto ip_port = request->ip_port();
   bool res = election_->CanVote(request->term(), request->last_commit_index(),
                                 ip_port);
   response->set_success(res);
 
-  // std::unique_lock<std::mutex> raft_manager_lock(raft_manager_mutex);
-  // std::cout << "someone ask)ed for a vote : ";
-  // if (raft_manager.can_vote(request->term())) {
-  //   response->set_vote(TRUE);
-  //   raft_manager_lock.unlock();
-  //   raft_manager.update_last_voted();
-  //   std::cout << "I replied yes\n";
-
-  // } else {
-  //   response->set_vote(FALSE);
-  //   std::cout << "I replied no\n";
-  // }
   return grpc::Status::OK;
 }
 
 grpc::Status RaftServer::NewLeader(grpc::ServerContext* context,
                                    const LeaderChangeRequest* request,
                                    LeaderChangeResponse* response) {
-  spdlog::info("RaftServer::NewLeader: Enter");
+  SPDLOG_INFO("RaftServer::NewLeader: Enter");
   auto ip_port = request->ip_port();
 
   bool res = cluster_manager_->UpdateLeader(ip_port, request->term());
-  rpc_calls_->AppendLogEntries(api_impl_->commited_idx);
 
-  spdlog::warn("Result of update leader {}", (int)res);
+  SPDLOG_WARN("Result of update leader {}", (int)res);
   response->set_success(res);
   // }
   return grpc::Status::OK;
@@ -86,67 +79,25 @@ grpc::Status RaftServer::NewLeader(grpc::ServerContext* context,
 
 grpc::Status RaftServer::UpdateClusterMember(grpc::ServerContext* context,
                                              const MemberRequest* request,
-                                             MemberResponse* response) {
-  spdlog::info("RaftServer::UpdateClusterMember: Enter");
-  spdlog::warn("RaftServer::UpdateClusterMember: ip_port:{} | broadcast:{} ",
-               request->ip_port(), request->broadcast());
+                                             ClusterInfo* response) {
+  SPDLOG_INFO("RaftServer::UpdateClusterMember: Enter");
+  SPDLOG_WARN("RaftServer::UpdateClusterMember: ip_port:{} | broadcast:{} ",
+              request->ip_port(), request->broadcast());
 
   cluster_manager_->AddNode(request->ip_port());
   if (request->broadcast()) {
-    spdlog::warn("Now Broadcasting");
+    SPDLOG_WARN("Now Broadcasting");
 
     MemberRequest request_ele;
     request_ele.set_broadcast(false);
     request_ele.set_cluster_key(request->cluster_key());
     request_ele.set_ip_port(request->ip_port());
     rpc_calls_->BroadcastMemberUpdate(request_ele);
-    rpc_calls_->ShareClusterInfo(request->ip_port(), request->cluster_key());
+    SPDLOG_WARN("Broadcasting Done now sharing cluster info");
+
+    rpc_calls_->GetClusterInfo(response, request->cluster_key());
     return grpc::Status::OK;
   }
 
-  // if ((request->cluster_key()) == cluster_key &&
-  //     (request->to_drop()) == FALSE) {
-  //   std::unique_lock<std::mutex> raft_manager_lock(raft_manager_mutex);
-  //   response->set_success(TRUE);
-  //   if (raft_manager.mpp.find(request->ip_port()) != raft_manager.mpp.end()) {
-  //     raft_manager.add_node_to_cluster(request->ip_port());
-  //     std::thread(
-  //         [&](std::string ip_port, std::string key_) {
-  //           raft_manager.share_cluster_info_with(ip_port, cluster_key);
-  //         },
-  //         request->ip_port(), request->cluster_key())
-  //         .detach();
-  //     return grpc::Status::OK;
-  //   }
-  //   raft_manager.add_node_to_cluster(request->ip_port());
-  //   if ((raft_manager.get_state()) == STATE::LEADER) {
-  //     raft_manager_lock.unlock();
-  //     std::thread(
-  //         [&](MemberRequest request) {
-  //           raft_manager.broadcast_member_update(request);
-  //         },
-  //         (*request))
-  //         .detach();
-  //   } else
-  //     raft_manager_lock.unlock();
-  //   std::cout << "added Node to cluster with ip:port :: "
-  //             << (request->ip_port()) << std::endl;
-  // } else {
-  //   response->set_success(FALSE);
-  // }
-
-  return grpc::Status::OK;
-}
-
-grpc::Status RaftServer::ShareClusterInfo(grpc::ServerContext* context,
-                                          const ::ClusterInfo* request,
-                                          CommitResponse* response) {
-  spdlog::info("RaftServer::ShareClusterInfo: Enter");
-
-  for (const auto& ip_port : request->ip_port()) {
-    cluster_manager_->AddNode(ip_port);
-  }
-  string leader_ip_port = request->leader_ip_port();
-  cluster_manager_->UpdateLeader(leader_ip_port, request->term());
   return grpc::Status::OK;
 }

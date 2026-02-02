@@ -39,10 +39,8 @@ service Raft{
   rpc NewLeader(LeaderChangeRequest) returns (LeaderChangeResponse);
   
   //
-  rpc UpdateClusterMember(MemberRequest) returns (MemberResponse);
+  rpc UpdateClusterMember(MemberRequest) returns (ClusterInfo);
   
-  //
-  rpc ShareClusterInfo(ClusterInfo) returns (CommitResponse);
   
 }
 
@@ -109,12 +107,6 @@ message MemberRequest{
   bool broadcast=1;
   string ip_port=2;
   string cluster_key=3;
-}
-message MemberResponse{
-  bool success=1;
-    int32 term=2;
-  string leader_ip_port=3;
-
 }
 
 message ClusterInfo{

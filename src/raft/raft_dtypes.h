@@ -5,11 +5,12 @@
 #include "gRPC_Communication.pb.h"
 
 struct NodeState {
-  std::unique_ptr<KeyValueStoreRPC::Stub> s1;
-  std::unique_ptr<Raft::Stub> s2;
+  std::shared_ptr<KeyValueStoreRPC::Stub> s1;
+  std::shared_ptr<Raft::Stub> s2;
   std::string ip_port;
   int64_t matchIndex;
   int64_t nextIndex;
+  int64_t commitedId;
 
   NodeState(const std::string& ip_port);
 };

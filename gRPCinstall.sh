@@ -21,4 +21,4 @@ make -j 4
 make install
 popd
 
-apt-get install -y libboost-all-dev net-tools gdb libspdlog-dev
+apt-get update && apt-get install -y libboost-all-dev net-tools gdb libspdlog-dev  systemd-coredump

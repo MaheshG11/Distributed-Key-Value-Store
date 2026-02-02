@@ -26,7 +26,7 @@ class RaftQueue {
   * @brief add entry to the queue 
   * @param entry
   */
-  bool AppendEntry(const StoreRequest& entry);
+  bool AppendEntry(StoreRequest& entry);
 
   /**
   * @brief add entry to the queue 
@@ -82,6 +82,8 @@ class RaftQueue {
   void appendEntries();
 
   void advanceIdx(std::pair<int, int>& idx);
+
+  bool decreaseIdx();
 
  private:
   std::mutex log_entries_mtx_;

@@ -9,18 +9,20 @@ NodeState::NodeState(const string& ip_port) {
       grpc::CreateChannel(ip_port, grpc::InsecureChannelCredentials()));
   s2 = Raft::NewStub(
       grpc::CreateChannel(ip_port, grpc::InsecureChannelCredentials()));
+  matchIndex = -1;
+  nextIndex = -1;
+  commitedId = -1;
 }
 
 void RaftParameters::Print() {
-  spdlog::info("max_retries {}", max_retries);
-  spdlog::info("election_timeout_low {}", election_timeout_low.count());
+  SPDLOG_INFO("max_retries {}", max_retries);
 
-  spdlog::info("election_timeout_high {}", election_timeout_high.count());
+  SPDLOG_INFO("election_timeout_low {}", election_timeout_low.count());
+  SPDLOG_INFO("election_timeout_high {}", election_timeout_high.count());
 
-  spdlog::info("election_timeout {}", election_timeout.count());
+  SPDLOG_INFO("election_timeout {}", election_timeout.count());
+  SPDLOG_INFO("heartbeat_timeout {}", heartbeat_timeout.count());
 
-  spdlog::info("heartbeat_timeout {}", heartbeat_timeout.count());
-
-  spdlog::info("this_ip_port {}", this_ip_port);
-  spdlog::info("cluster_key {}", cluster_key);
+  SPDLOG_INFO("this_ip_port {}", this_ip_port);
+  SPDLOG_INFO("cluster_key {}", cluster_key);
 }

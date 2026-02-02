@@ -35,7 +35,7 @@ class HeartbeatSensor {
    * @brief update the last contact time to current time
    */
   inline void UpdateLastContact() {
-    spdlog::info("HeartbeatSensor(UpdateLastContact): Enter");
+    SPDLOG_INFO("HeartbeatSensor(UpdateLastContact): Enter");
 
     last_contact_ = std::chrono::system_clock::now();
   }
@@ -55,5 +55,4 @@ class HeartbeatSensor {
   std::atomic<bool> sense_;
   std::thread heartbeat_thread_;
   std::chrono::time_point<std::chrono::system_clock> last_contact_;
-  std::shared_ptr<ApiImpl> api_impl_;
 };

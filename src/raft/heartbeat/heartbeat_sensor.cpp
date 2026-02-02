@@ -14,14 +14,14 @@ HeartbeatSensor::HeartbeatSensor(RaftManagerCallback* callback)
       callback_(callback),
       sense_({false}) {
   UpdateLastContact();
-  spdlog::info("HeartbeatSensor(constructor): Enter");
+  SPDLOG_INFO("HeartbeatSensor(constructor): Enter");
 }
 
 /**
    * @brief begin hearbeat sensing
    */
 void HeartbeatSensor::Start() {
-  spdlog::info("HeartbeatSensor::Start: Enter");
+  SPDLOG_INFO("HeartbeatSensor::Start: Enter");
   start();
 }
 
@@ -29,7 +29,7 @@ void HeartbeatSensor::Start() {
    * @brief stop hearbeat sensing
    */
 void HeartbeatSensor::Stop() {
-  spdlog::info("HeartbeatSensor::Stop: Enter");
+  SPDLOG_INFO("HeartbeatSensor::Stop: Enter");
 
   sense_ = false;
   if (heartbeat_thread_.joinable()) {
@@ -41,23 +41,23 @@ void HeartbeatSensor::Stop() {
    * @brief begin hearbeat sensing
    */
 void HeartbeatSensor::start() {
-  spdlog::info("HeartbeatSensor::start: Enter");
+  SPDLOG_INFO("HeartbeatSensor::start: Enter");
 
   HeartRequest request;
   request.set_term(raft_state_->GetTerm());
   BeatsResponse response;
   sense_ = true;
   while (sense_.load()) {
-    spdlog::info("HeartbeatSensor::sending heatbeart");
+    SPDLOG_INFO("HeartbeatSensor::sending heatbeart");
 
     if (raft_state_->GetState() == LEADER) {
-      spdlog::info("I am the leader");
+      SPDLOG_INFO("I am the leader");
       std::this_thread::sleep_for(raft_parameters_->election_timeout_high);
       continue;
     }
     response = rpc_calls_->SendHeartbeat(request);
     if (response.is_leader()) {
-      spdlog::info("I reached the leader");
+      SPDLOG_INFO("I reached the leader");
 
       UpdateLastContact();
       std::this_thread::sleep_for(raft_parameters_->heartbeat_timeout);
@@ -66,11 +66,10 @@ void HeartbeatSensor::start() {
       try {
         cluster_manager_->UpdateLeader(response.leader_ip_port(),
                                        response.term());
-        rpc_calls_->AppendLogEntries(api_impl_->commited_idx);
 
         continue;
       } catch (const std::exception& e) {
-        spdlog::info(" heatbeart error {}", e.what());
+        SPDLOG_INFO(" heatbeart error {}", e.what());
       }
     }
     raft_state_->SetLeaderAvailable(false);
@@ -79,11 +78,11 @@ void HeartbeatSensor::start() {
       continue;
     bool res = callback_->StartElection();
     if (res) {
-      spdlog::info("Election won by me:{}",
-                   (cluster_manager_->GetLeader().first));
+      SPDLOG_INFO("Election won by me:{}",
+                  (cluster_manager_->GetLeader().first));
 
     } else {
-      spdlog::info("I lost the election");
+      SPDLOG_INFO("I lost the election");
     }
   }
 }

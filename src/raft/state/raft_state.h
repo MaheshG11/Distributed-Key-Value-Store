@@ -8,12 +8,12 @@
  */
 class RaftState {
  public:
-  inline RaftState() { spdlog::info("RaftState(constructor): Enter"); };
+  inline RaftState() { SPDLOG_INFO("RaftState(constructor): Enter"); };
   /**
   * @brief Get Current role of this node 
   */
   inline STATE GetState() {
-    spdlog::info("RaftState::GetState: Enter");
+    SPDLOG_INFO("RaftState::GetState: Enter");
     return state_;
   }
 
@@ -22,7 +22,7 @@ class RaftState {
   * @param state set the state to
   */
   inline bool SetState(STATE state) {
-    spdlog::info("RaftState::SetState: Enter");
+    SPDLOG_INFO("RaftState::SetState: Enter");
     state_ = state;
     return true;
   }
@@ -31,7 +31,7 @@ class RaftState {
    * @brief Get current term 
    */
   inline int32_t GetTerm() {
-    spdlog::info("RaftState::GetTerm: Enter");
+    SPDLOG_INFO("RaftState::GetTerm: Enter");
     return term_.load();
   }
 
@@ -41,7 +41,7 @@ class RaftState {
    * 
    */
   inline void SetTerm(int32_t term) {
-    spdlog::info("RaftState::SetTerm: Enter");
+    SPDLOG_INFO("RaftState::SetTerm: Enter");
     term_ = term;
   }
 
@@ -49,7 +49,7 @@ class RaftState {
    * @brief get current commit index
    */
   inline int64_t GetCommitIndex() {
-    spdlog::info("RaftState::GetCommitIndex: Enter");
+    SPDLOG_INFO("RaftState::GetCommitIndex: Enter");
     return commit_index_.load();
   }
 
@@ -57,7 +57,7 @@ class RaftState {
    * @brief set commit index
    */
   inline void SetCommitIndex(int64_t commit_index) {
-    spdlog::info("RaftState::SetCommitIndex: Enter");
+    SPDLOG_INFO("RaftState::SetCommitIndex: Enter");
     commit_index_ = commit_index;
   }
 
@@ -65,7 +65,7 @@ class RaftState {
    *  @brief Sets leader available variable
    */
   inline void SetLeaderAvailable(bool is_leader_available) {
-    spdlog::info("RaftState::SetLeaderAvailable: Enter");
+    SPDLOG_INFO("RaftState::SetLeaderAvailable: Enter");
     is_leader_available_.store(is_leader_available);
   }
 
@@ -73,7 +73,7 @@ class RaftState {
    *  @brief Get leader available variable
    */
   inline bool GetLeaderAvailable() {
-    spdlog::info("RaftState::SetLeaderAvailable: Enter");
+    SPDLOG_INFO("RaftState::SetLeaderAvailable: Enter");
     return is_leader_available_.load();
   }
 

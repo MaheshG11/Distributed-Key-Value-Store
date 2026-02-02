@@ -24,4 +24,5 @@ class ApiImpl : public KeyValueStoreRPC::Service {
  private:
   std::shared_ptr<RaftQueue> log_queue_;
   std::shared_ptr<RaftState> raft_state_;
+  std::atomic<int64_t> curr_id = -1;
 };

@@ -1,3 +1,3 @@
 #! /bin/bash
-
-apt-get install -y libgtest-dev 
+apt-get update
+apt-get install -y libgtest-dev

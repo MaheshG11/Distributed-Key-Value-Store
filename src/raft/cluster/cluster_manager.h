@@ -1,9 +1,13 @@
 #pragma once
+#include <atomic>
 #include <memory>
 #include "api.h"
 #include "log_queue.h"
 #include "raft_dtypes.h"
 #include "raft_state.h"
+#include "rpc_calls.h"
+
+class RPCCalls;
 /**
  * @brief Manage connections
  */
@@ -54,13 +58,25 @@ class ClusterManager {
    * @brief get leader details
    * @returns ip_port and its current term
    */
-  std::unique_ptr<Raft::Stub>& GetLeaderStub();
+  std::shared_ptr<Raft::Stub> GetLeaderStub();
 
   /**
    * @brief get leader details
    * @returns ip_port and its current term
    */
-  std::mutex& GetLeaderMutex();
+  std::mutex& GetCommMutex();
+
+  /**
+   * sets rpc calls for cluster manager
+   * @brief 
+   * */
+  inline void SetRPCCalls(std::shared_ptr<RPCCalls> rpc_calls) {
+    rpc_calls_ = rpc_calls;
+  }
+
+  inline void SetApiImpl(std::shared_ptr<ApiImpl> api_impl) {
+    api_impl_ = api_impl;
+  }
 
   /*
     custom iterator
@@ -81,13 +97,17 @@ class ClusterManager {
 
   friend class RPCCalls;
   friend class RaftManager;
+  friend class RaftServer;
 
  private:
   std::map<std::string, NodeState> cluster_map_;
-  std::unique_ptr<Raft::Stub> leader_stub_;
-  std::mutex leader_stub_mtx_;
-  std::string leader_ip_port_ = "", cluster_key_;
+  std::mutex leader_mtx_, cluster_map_mtx_;
+  std::string cluster_key_;
+  std::atomic<std::shared_ptr<std::string>> leader_ip_port_;
   std::shared_ptr<RaftParameters> raft_parameters_;
   std::shared_ptr<RaftState> raft_state_;
   std::shared_ptr<RaftQueue> log_queue_;
+  std::shared_ptr<RPCCalls> rpc_calls_;
+  std::shared_ptr<ApiImpl> api_impl_;
+  // std::atomic<int64_t>& commit_idx_;
 };

@@ -19,7 +19,6 @@
 #include <boost/random/uniform_int_distribution.hpp>
 using namespace std;
 const string CLUSTER_KEY = "ABC";
-
 int get_random(int low, int high) {
   boost::random::random_device rd;
   boost::random::uniform_int_distribution<int> dist(low, high);
@@ -72,9 +71,8 @@ void RunServer(int32_t election_timeout_low, int32_t election_timeout_high,
       make_shared<RaftParameters>(raft_parameters);
   raft_parameters.Print();
 
-  RaftManager raft_manager(raft_param_ptr);
-
-  raft_manager.StartServer(master_ip_port);
+  auto raft_manager = std::make_shared<RaftManager>(raft_param_ptr);
+  raft_manager->StartServer(master_ip_port);
 }
 
 void get_help() {
@@ -98,14 +96,10 @@ int main(int argc, char* argv[]) {
 
   auto console = spdlog::stdout_color_mt("console");
   spdlog::set_default_logger(console);
-  spdlog::set_level(spdlog::level::warn);
-  // spdlog::info("func='{}'", spdlog::source_loc::c
-  spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
-
-  spdlog::set_level(spdlog::level::warn);
-
-  // spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] %v");
-  spdlog::info("Logger initialized");
+  spdlog::set_level(spdlog::level::info);
+  spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [tid %t] [%s:%# %!] %v");
+  SPDLOG_INFO("Logger initialized");
+  SPDLOG_INFO("spdlog version {}.{}", SPDLOG_VER_MAJOR, SPDLOG_VER_MINOR);
 
   try {
     if (string(argv[1]) == "--help") {
