@@ -391,12 +391,12 @@ void RPCCalls::appendLogEntries(atomic<int64_t>& commited_idx) {
 
     auto it = cluster_manager_->begin();
     LogRequest request;
-    ClientContext context;
     request.set_term(raft_state_->GetTerm());
     int64_t min_commit_id = LONG_MAX;
 
     while (it != cluster_manager_->end()) {
       auto deadline = chrono::system_clock::now() + chrono::milliseconds(500);
+      ClientContext context;
       context.set_deadline(deadline);
 
       if (it->second.commitedId == log_queue_->GetMostRecentId()) {
@@ -405,12 +405,13 @@ void RPCCalls::appendLogEntries(atomic<int64_t>& commited_idx) {
         it++;
         continue;
       }
+      it->second.nextIndex = log_queue_->GetNextId(it->second.matchIndex);
       log_queue_->GetEntries(it->second.nextIndex, request);
       request.set_commit_idx(commited_idx);
       SPDLOG_INFO("GetEntries Size: {}", request.entries_size());
 
       LogResponse response;
-      auto entries = request.entries();
+      auto& entries = request.entries();
       if (entries.size()) {
         if (it->first == raft_parameters_->this_ip_port) {
           response.set_success(log_queue_->AppendEntries(request));
@@ -445,7 +446,6 @@ void RPCCalls::appendLogEntries(atomic<int64_t>& commited_idx) {
     sort(match_idxs.begin(), match_idxs.end());
     int sz = match_idxs.size();
     if (sz) {
-      SPDLOG_WARN("Matched indexes: {}", match_idxs.size());
 
       commited_idx = match_idxs[(sz - 1) / 2];
       commited_idx.notify_all();
@@ -456,7 +456,7 @@ void RPCCalls::appendLogEntries(atomic<int64_t>& commited_idx) {
     mini_commit_id = min_commit_id;
     if (commited_idx >= 0) {
       SPDLOG_WARN("Exiting");
-      exit(0);
+      // exit(0);
     }
     if (mini_commit_id < log_queue_->GetMostRecentId())
       continue;

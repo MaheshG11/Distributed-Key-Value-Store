@@ -19,35 +19,52 @@ RaftQueue::RaftQueue(std::string& path) : store(path) {
   */
 bool RaftQueue::GetEntries(int64_t entry_id, LogRequest& request) {
   SPDLOG_INFO("RaftQueue::GetEntries: Enter");
+  SPDLOG_INFO("Entry id is {}", entry_id);
 
   auto* entries_field = request.mutable_entries();
 
   int64_t last;
-  if ((*entries_field).size()) {
-    last = (*entries_field)[(*entries_field).size() - 1].id();
+  int arr_idx, entry_idx;
+  bool f = true;
+  // remove unnecessary entries
+  if (request.entries_size()) {
+    last = (*entries_field)[request.entries_size() - 1].id();
+    while (entries_field->size() && last <= entry_id) {
+      SPDLOG_INFO("Before remove size is {}", request.entries_size());
+      entries_field->RemoveLast();
+      SPDLOG_INFO("after remove size is {}", request.entries_size());
+      if (request.entries_size()) {
+        last = (*entries_field)[request.entries_size() - 1].id();
+      } else {
+        last = GetMostRecentId();
+        pair<int, int> pr = find(last);
+        arr_idx = pr.first;
+        entry_idx = pr.second;
+
+        f = false;
+      }
+    }
   } else {
     last = GetMostRecentId();
+    pair<int, int> pr = find(last);
+    arr_idx = pr.first;
+    entry_idx = pr.second;
+    f = false;
   }
-  SPDLOG_INFO("Entry id is {}", entry_id);
-
-  while (entries_field->size() && last <= entry_id) {
-    SPDLOG_INFO("Before remove size is {}", request.entries_size());
-    entries_field->RemoveLast();
-    SPDLOG_INFO("after remove size is {}", request.entries_size());
-    if ((*entries_field).size()) {
-      if ((*entries_field)[(*entries_field).size() - 1].id() < entry_id)
-        last = (*entries_field)[(*entries_field).size() - 1].id();
-      else if ((*entries_field)[(*entries_field).size() - 1].id() == entry_id) {
-        entries_field->RemoveLast();
-        break;
-      }
-    } else
-      last = GetMostRecentId();
+  if (f) {
+    last--;
+    pair<int, int> pr = find(last);
+    arr_idx = pr.first;
+    entry_idx = pr.second;
   }
   SPDLOG_INFO("last is set to {} ", last);
   lock_guard<mutex> lock1(log_entries_mtx_);
 
-  auto [arr_idx, entry_idx] = find(last);
+  // if (!request.entries_size()) {
+  //   pair<int, int> pr = decreaseIdx({arr_idx, entry_idx});
+  //   arr_idx = pr.first;
+  //   entry_idx = pr.second;
+  // }
   SPDLOG_INFO("Got {} {}", arr_idx, entry_idx);
 
   if (entry_idx == -1)
@@ -55,8 +72,7 @@ bool RaftQueue::GetEntries(int64_t entry_id, LogRequest& request) {
   SPDLOG_INFO("Size{}", log_entries_[arr_idx].size());
   SPDLOG_INFO("Before start size is {}", request.entries_size());
   while (true) {
-    if (entry_idx >= 0 && entry_idx < log_entries_[arr_idx].size() &&
-        entry_id <= log_entries_[arr_idx][entry_idx].id()) {
+    if (entry_idx >= 0 && entry_id <= log_entries_[arr_idx][entry_idx].id()) {
       StoreRequest entry = log_entries_[arr_idx][entry_idx--];
       SPDLOG_INFO("Adding entry_idx {} | Before size is {}", entry_idx + 1,
                   request.entries_size());
@@ -75,7 +91,7 @@ bool RaftQueue::GetEntries(int64_t entry_id, LogRequest& request) {
   * @brief add entry to the queue 
   * @param entry
   */
-bool RaftQueue::AppendEntry(StoreRequest& entry) {
+bool RaftQueue::AppendEntry(const StoreRequest& entry) {
   SPDLOG_INFO("RaftQueue::AppendEntry: Enter");
 
   lock_guard<mutex> lock1(log_entries_mtx_);
@@ -100,17 +116,25 @@ pair<string, bool> RaftQueue::GetValue(const StoreRequest& entry) {
 bool RaftQueue::AppendEntries(const LogRequest& request) {
   SPDLOG_INFO("RaftQueue::AppendEntries: Enter");
 
-  auto entries = request.entries();
+  const auto& entries = request.entries();
+  if (entries.empty()) {
+    return true;
+  }
   int32_t id = GetMostRecentId(), req_id = entries.cbegin()->id();
-  if (id < entries.cbegin()->id()) {
-    for (auto entry : entries) {
+  if (id < req_id) {
+    for (const auto& entry : entries) {
       AppendEntry(entry);
     }
     return true;
   }
-  auto idx = find(req_id);
-  auto it = entries.begin();
-  if (idx.first == -1)
+
+  pair<int, int> idx;
+  {
+    std::lock_guard<std::mutex> lock(log_entries_mtx_);
+    idx = find(req_id);
+  }
+  auto it = entries.cbegin();
+  if (idx.first == -1 and idx.second == -1)
     return false;
   while (it != entries.cend()) {
 
@@ -120,7 +144,7 @@ bool RaftQueue::AppendEntries(const LogRequest& request) {
     }
     it++;
     advanceIdx(idx);
-    if (idx.first >= 0)
+    if (idx.first >= 0 and idx.second >= 0)
       continue;
     break;
   }
@@ -208,6 +232,26 @@ int64_t RaftQueue::GetMostRecentId() {
   }
   return -1;
 }
+int64_t RaftQueue::GetNextId(int64_t id) {
+  lock_guard<mutex> lock1(log_entries_mtx_);
+
+  if (id == -1) {
+    if (log_entries_[0].size()) {
+      id++;
+      auto [arr_idx, entry_idx] = find(id);
+      return log_entries_[arr_idx][entry_idx].id();
+    }
+  }
+  auto [arr_idx, entry_idx] = find(id);
+
+  if (arr_idx < 0 || entry_idx < 0) {
+    return id;
+  }
+  if (entry_idx + 1 < log_entries_[arr_idx].size()) {
+    return log_entries_[arr_idx][entry_idx + 1].id();
+  }
+  return id;
+}
 
 /**
   * @brief clears log, to be called when log is filled up
@@ -250,7 +294,6 @@ bool RaftQueue::execute(StoreRequest& entry) {
   */
 pair<int, int> RaftQueue::find(int64_t entry_id) {
   SPDLOG_INFO("RaftQueue::find: Enter");
-  entry_id++;
   int arr_idx = -1;
   if (log_entries_[in_use_log_entries_].size() &&
       log_entries_[in_use_log_entries_][0].id() <= entry_id) {
@@ -268,33 +311,63 @@ pair<int, int> RaftQueue::find(int64_t entry_id) {
   int ans = -1;
   while (l <= r) {
     int mid = l + (r - l) / 2;
+    SPDLOG_INFO("l {} | r {} | mid {} | ans{} | mid id {}", l, r, mid, ans,
+                log_entries_[arr_idx][mid].id());
     if (log_entries_[arr_idx][mid].id() < entry_id) {
-      l = mid + 1;
       ans = mid;
+      l = mid + 1;
+      SPDLOG_INFO("H1");
 
     } else if (log_entries_[arr_idx][mid].id() > entry_id) {
       r = mid - 1;
+      SPDLOG_INFO("H2");
+
     } else {
       ans = mid;
+      SPDLOG_INFO("H3");
+
       break;
     }
   }
+  SPDLOG_INFO(" ans{}", ans);
 
   return {arr_idx, ans};
 }
 
 void RaftQueue::advanceIdx(std::pair<int, int>& idx) {
   SPDLOG_INFO("RaftQueue::advanceIdx: Enter");
-
-  if (idx.first + 1 < 1e6 and log_entries_[idx.second].size() < idx.first + 1) {
-    idx.first++;
+  if (idx.first < 0 and idx.first > 2) {
+    idx.first = -1;
+    idx.second = -1;
     return;
-
-  } else if (idx.second + 1 < 3 && log_entries_[idx.second + 1].size()) {
-    idx.first = 0;
+  }
+  if (idx.second + 1 < log_entries_[idx.first].size()) {
     idx.second++;
     return;
+  } else if (idx.second >= 1e6 and idx.first < 2) {
+    idx.first++;
+    if (log_entries_[idx.first].size()) {
+      idx.second = 0;
+      return;
+    } else {
+      idx.second = -1;
+      idx.first = -1;
+      return;
+    }
   }
   idx.first = -1;
   idx.second = -1;
+}
+
+std::pair<int, int> RaftQueue::decreaseIdx(std::pair<int, int> idx) {
+  if (idx.second > 0) {
+    idx.second--;
+  } else if (idx.first > 0) {
+    idx.first--;
+    idx.second = log_entries_[idx.first].size() - 1;
+  } else {
+    idx.first = -1;
+    idx.second = -1;
+  }
+  return {idx.first, idx.second};
 }

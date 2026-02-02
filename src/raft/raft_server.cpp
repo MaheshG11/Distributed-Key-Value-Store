@@ -21,6 +21,8 @@ grpc::Status RaftServer::SendLogEntry(grpc::ServerContext* context,
                                       LogResponse* response) {
   SPDLOG_INFO("RaftServer::SendLogEntry: Enter");
   response->set_success(log_queue_->AppendEntries((*request)));
+  response->set_success(
+      min(response->success(), log_queue_->CommitEntry(request->commit_idx())));
   return grpc::Status::OK;
 }
 
@@ -31,11 +33,6 @@ grpc::Status RaftServer::Heartbeat(grpc::ServerContext* context,
 
   if (raft_state_->GetState() == STATE::LEADER) {
     response->set_is_leader(true);
-    if (request->commit_id() != -1) {
-      auto it = cluster_manager_->Find(request->ip_port());
-      it->second.matchIndex = request->commit_id();
-      it->second.nextIndex = request->commit_id() + 1;
-    }
     return grpc::Status::OK;
   } else {
     response->set_is_leader(false);
