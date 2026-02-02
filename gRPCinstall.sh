@@ -20,5 +20,3 @@ cmake -DgRPC_INSTALL=ON \
 make -j 4
 make install
 popd
-
-apt-get update && apt-get install -y libboost-all-dev net-tools gdb libspdlog-dev  systemd-coredump

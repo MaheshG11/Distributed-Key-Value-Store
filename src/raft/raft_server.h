@@ -4,8 +4,8 @@
 #include "gRPC_Communication.grpc.pb.h"
 #include "gRPC_Communication.pb.h"
 // #include "log_store.h"
-#include "log_queue.h"
 #include "raft_manager.h"
+#include "raft_queue.h"
 #include "raft_state.h"
 #include "rpc_calls.h"
 // bool TRUE = true, FALSE = false;

@@ -1,4 +1,4 @@
-#include "log_queue.h"
+#include "raft_queue.h"
 #include <spdlog/spdlog.h>
 #include <memory>
 // #include "store.cpp"
@@ -21,17 +21,27 @@ bool RaftQueue::GetEntries(int64_t entry_id, LogRequest& request) {
   SPDLOG_INFO("RaftQueue::GetEntries: Enter");
 
   auto* entries_field = request.mutable_entries();
+
   int64_t last;
   if ((*entries_field).size()) {
     last = (*entries_field)[(*entries_field).size() - 1].id();
   } else {
     last = GetMostRecentId();
   }
-  while (entries_field->size() && last >= entry_id) {
+  SPDLOG_INFO("Entry id is {}", entry_id);
+
+  while (entries_field->size() && last <= entry_id) {
+    SPDLOG_INFO("Before remove size is {}", request.entries_size());
     entries_field->RemoveLast();
-    if ((*entries_field).size())
-      last = (*entries_field)[(*entries_field).size() - 1].id();
-    else
+    SPDLOG_INFO("after remove size is {}", request.entries_size());
+    if ((*entries_field).size()) {
+      if ((*entries_field)[(*entries_field).size() - 1].id() < entry_id)
+        last = (*entries_field)[(*entries_field).size() - 1].id();
+      else if ((*entries_field)[(*entries_field).size() - 1].id() == entry_id) {
+        entries_field->RemoveLast();
+        break;
+      }
+    } else
       last = GetMostRecentId();
   }
   SPDLOG_INFO("last is set to {} ", last);
@@ -43,11 +53,15 @@ bool RaftQueue::GetEntries(int64_t entry_id, LogRequest& request) {
   if (entry_idx == -1)
     return false;
   SPDLOG_INFO("Size{}", log_entries_[arr_idx].size());
-
-  while (entry_idx < log_entries_[arr_idx].size()) {
-    if (entry_idx >= 0 && entry_id <= log_entries_[arr_idx][entry_idx].id()) {
+  SPDLOG_INFO("Before start size is {}", request.entries_size());
+  while (true) {
+    if (entry_idx >= 0 && entry_idx < log_entries_[arr_idx].size() &&
+        entry_id <= log_entries_[arr_idx][entry_idx].id()) {
       StoreRequest entry = log_entries_[arr_idx][entry_idx--];
+      SPDLOG_INFO("Adding entry_idx {} | Before size is {}", entry_idx + 1,
+                  request.entries_size());
       entries_field->Add(move(entry));
+      SPDLOG_INFO("After size is {}", request.entries_size());
     } else if (entry_idx < 0 and arr_idx > 0) {
       arr_idx--;
       entry_idx = log_entries_[arr_idx].size() - 1;
@@ -147,7 +161,7 @@ bool RaftQueue::CommitEntry(int64_t entry_id) {
 
   lock_guard<mutex> lock1(log_entries_mtx_);
 
-  while (commit_id_ <= entry_id) {
+  while (commit_id_ < entry_id) {
     ++commit_idx_;
     if (commit_idx_ >= log_entries_[commit_arr_id_].size()) {
       if (commit_arr_id_ < 2 && commit_idx_ >= 1e6) {
@@ -158,12 +172,17 @@ bool RaftQueue::CommitEntry(int64_t entry_id) {
         return false;
       }
     }
+    SPDLOG_INFO("Commiting index {}", commit_idx_);
     if (commit_idx_ < log_entries_[commit_arr_id_].size()) {
-      if (entry_id <= log_entries_[commit_arr_id_][commit_idx_].id()) {
+      if (entry_id >= log_entries_[commit_arr_id_][commit_idx_].id()) {
+        SPDLOG_INFO("Commiting id {}",
+                    log_entries_[commit_arr_id_][commit_idx_].id());
+
         if (execute(log_entries_[commit_arr_id_][commit_idx_])) {
           commit_id_ = log_entries_[commit_arr_id_][commit_idx_].id();
           continue;
         }
+
         return false;
       }
     }
@@ -251,9 +270,13 @@ pair<int, int> RaftQueue::find(int64_t entry_id) {
     int mid = l + (r - l) / 2;
     if (log_entries_[arr_idx][mid].id() < entry_id) {
       l = mid + 1;
+      ans = mid;
+
+    } else if (log_entries_[arr_idx][mid].id() > entry_id) {
+      r = mid - 1;
     } else {
       ans = mid;
-      r = mid - 1;
+      break;
     }
   }
 

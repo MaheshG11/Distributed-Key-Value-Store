@@ -56,6 +56,11 @@ class RaftQueue {
    */
   int64_t GetMostRecentId();
 
+  inline int32_t GetCurrentSize() {
+    std::lock_guard<std::mutex> lock1(log_entries_mtx_);
+    return log_entries_[in_use_log_entries_].size();
+  }
+
  private:
   /**
   * @brief clears log, to be called when log is filled up
@@ -90,7 +95,7 @@ class RaftQueue {
   std::vector<StoreRequest> log_entries_[3];
   int in_use_log_entries_ = 0;
   int64_t commit_idx_ = -1;
-  int32_t commit_id_, commit_arr_id_ = 0;
+  int32_t commit_id_ = -1, commit_arr_id_ = 0;
   std::thread append_entries_thread_;
   Store store;
 };

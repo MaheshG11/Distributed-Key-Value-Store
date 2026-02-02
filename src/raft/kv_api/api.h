@@ -5,7 +5,7 @@
 // #include "store.h"
 #include <memory>
 #include <string>
-#include "log_queue.h"
+#include "raft_queue.h"
 #include "raft_state.h"
 // #include "log_store_impl.cpp"
 

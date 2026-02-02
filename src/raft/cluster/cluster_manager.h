@@ -2,8 +2,8 @@
 #include <atomic>
 #include <memory>
 #include "api.h"
-#include "log_queue.h"
 #include "raft_dtypes.h"
+#include "raft_queue.h"
 #include "raft_state.h"
 #include "rpc_calls.h"
 

@@ -56,6 +56,7 @@ target_link_libraries(distributed_kv_store
 
 )
 
+add_subdirectory(test)
 
 # target_link_libraries(Node
     # Leader

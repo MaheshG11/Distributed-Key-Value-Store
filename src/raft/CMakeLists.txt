@@ -40,7 +40,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/queue/
 # )
 
 add_library(RAFT_QUEUE OBJECT 
-${CMAKE_CURRENT_SOURCE_DIR}/queue/log_queue.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/queue/raft_queue.cpp
 ${CMAKE_CURRENT_SOURCE_DIR}/queue/store.cpp
 
 )

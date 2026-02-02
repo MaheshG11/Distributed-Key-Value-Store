@@ -4,8 +4,8 @@
 #include "cluster_manager.h"
 #include "gRPC_Communication.grpc.pb.h"
 #include "gRPC_Communication.pb.h"
-#include "log_queue.h"
 #include "raft_dtypes.h"
+#include "raft_queue.h"
 
 /**
  * @brief Make and manage all the RPC calls
