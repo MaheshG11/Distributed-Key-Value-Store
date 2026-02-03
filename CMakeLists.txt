@@ -56,6 +56,11 @@ target_link_libraries(distributed_kv_store
 
 )
 
+install(TARGETS distributed_kv_store
+    RUNTIME DESTINATION bin
+)
+
+
 add_subdirectory(test)
 
 # target_link_libraries(Node

@@ -1,4 +1,5 @@
 set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_CXX_STANDARD 20)
 
 
 include_directories(

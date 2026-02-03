@@ -1,5 +1,5 @@
 Double_Barrier_Synchronization.pdf
-*build*
+*build/*
 *.pb.*
 data/*
 *temp*

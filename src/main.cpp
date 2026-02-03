@@ -51,7 +51,8 @@ std::string getLocalIP() {
 
 void RunServer(int32_t election_timeout_low, int32_t election_timeout_high,
                int32_t heartbeat_timeout, int32_t max_retries,
-               std::string master_ip_port, std::string path) {
+               int32_t num_nodes, std::string master_ip_port,
+               std::string path) {
   RaftParameters raft_parameters;
   raft_parameters.cluster_key = CLUSTER_KEY;
   raft_parameters.election_timeout = std::chrono::milliseconds(
@@ -65,7 +66,7 @@ void RunServer(int32_t election_timeout_low, int32_t election_timeout_high,
   raft_parameters.max_retries = max_retries;
   raft_parameters.this_ip_port = getLocalIP() + ":5556";
   raft_parameters.path = path;
-  raft_parameters.size = 5;
+  raft_parameters.size = num_nodes;
 
   shared_ptr<RaftParameters> raft_param_ptr =
       make_shared<RaftParameters>(raft_parameters);
@@ -76,10 +77,12 @@ void RunServer(int32_t election_timeout_low, int32_t election_timeout_high,
 }
 
 void get_help() {
-
+  cout << "\nDistributed Key-Value Store using Raft Consensus Algorithm\n";
+  cout << "-------------------------------------------------------\n";
+  cout << "\n";
   cout << "\nEnter the details in the following manner\n";
   cout << "\ndistributed_kv_store <election low> <election high> <heartbeat "
-          "timeout> <max retries> <member_ip_port> <path>\n";
+          "timeout> <max retries> <num_nodes> <member_ip_port> <path>\n";
   cout << "\n\n\n";
   cout << "election timeout low and high (in ms): Election timeout will be "
           "generated at random between these numbers\n";
@@ -87,9 +90,14 @@ void get_help() {
           "alive every heartbeat timeout \n";
   cout << "max retries :                       How many times will this node "
           "retry when communicating with others\n\n";
+
+  cout << "num_nodes :total number of nodes\n";
   cout << "master_ip_port :                    IP Port of one of the members\n";
   cout << "path :                              Path at which the k-v store is "
           "to be initialized \n\n";
+
+  cout << "These arguments are to be passed in the same order and must be set "
+          "in Dockerfile\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -108,7 +116,7 @@ int main(int argc, char* argv[]) {
     } else {
 
       RunServer(stoi(argv[1]), stoi(argv[2]), stoi(argv[3]), stoi(argv[4]),
-                argv[5], argv[6]);
+                stoi(argv[5]), argv[6], argv[7]);
     }
   } catch (const std::exception& e) {
     cerr << "Caught exception: " << e.what() << "\n\n";
